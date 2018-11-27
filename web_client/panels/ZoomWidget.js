@@ -92,7 +92,7 @@ var ZoomWidget = Panel.extend({
 
         // set the text value on the readonly input box
         this._zoomSliderInput();
-
+        console.log('remove this');
         return this;
     },
 
