@@ -60,7 +60,9 @@ var AnnotationSelector = Panel.extend({
         this.listenTo(girderEvents, 'g:login', () => {
             this.collection.reset();
             this._parentId = undefined;
+            this._currentUser = getCurrentUser();
         });
+	console.log('init');
     },
 
     render() {
@@ -88,6 +90,7 @@ var AnnotationSelector = Panel.extend({
         this.$('[data-toggle="tooltip"]').tooltip({container: 'body'});
         this._changeGlobalOpacity();
         this._changeGlobalFillOpacity();
+	console.log('render');
         return this;
     },
 
@@ -116,6 +119,7 @@ var AnnotationSelector = Panel.extend({
         this.collection.reset();
         this.collection.fetch({itemId: this._parentId});
 
+	console.log('setItem');
         return this;
     },
 
@@ -125,7 +129,45 @@ var AnnotationSelector = Panel.extend({
      * annotations.
      */
     setViewer(viewer) {
-        this.viewer = viewer;
+		var onDomIsRendered = function(domString) {
+		  return new Promise(function(resolve, reject) {
+			function waitUntil() {
+			  setTimeout(function() {
+				if(this.$(domString).length > 0){
+				  resolve(this.$(domString));
+				}else {
+				  waitUntil();
+				}
+			  }, 100);
+			}
+			//start the loop
+			waitUntil();
+		  });
+		};
+
+		this.viewer = viewer;
+        // console.log(this._currentUser);
+        this._currentUser = getCurrentUser()
+        const expert = this._currentUser.attributes.groups.indexOf('5bef3897e6291400ba908ab3') > 0;
+        if (!expert) {
+            //this.render();
+            this._expandedGroups.add('Other');
+            console.log('before promise');
+            const v = this;
+            onDomIsRendered('.h-annotation-name[title="' + this._currentUser.attributes.login + '"]').then(function(annotation){
+                //this.render();
+				var userAnnotation = annotation.parents('.h-annotation').data('id');
+                console.log(userAnnotation);
+				if (userAnnotation) {
+					console.log(userAnnotation);
+					console.log('selected-annotation');
+					userAnnotation = v.collection.get(userAnnotation);
+					v.editAnnotation(userAnnotation);
+                    $('.h-annotation-selector').css('display', 'none');
+				}
+            });
+        }
+        console.log('setViewer');
         return this;
     },
 
@@ -140,6 +182,7 @@ var AnnotationSelector = Panel.extend({
         if (!model.get('displayed')) {
             model.unset('highlight');
         }
+	console.log('toggleAnnotation');
     },
 
     /**
@@ -164,6 +207,7 @@ var AnnotationSelector = Panel.extend({
                 }
             });
         }
+	console.log('deleteAnnotation');
     },
 
     editAnnotationMetadata(evt) {
@@ -180,12 +224,14 @@ var AnnotationSelector = Panel.extend({
                 });
             }
         );
+	console.log('editAnnotationMetadata');
     },
 
     _onJobUpdate(evt) {
         if (this.parentItem && evt.data.status > 2) {
             this._refreshAnnotations();
         }
+	console.log('_onJobUpdate');
     },
 
     _refreshAnnotations() {
@@ -211,6 +257,7 @@ var AnnotationSelector = Panel.extend({
             if (activeId) {
                 this._setActiveAnnotation(this.collection.get(activeId));
             }
+	    console.log('_refreshAnnotations');
             return null;
         });
     },
@@ -220,24 +267,29 @@ var AnnotationSelector = Panel.extend({
         this.trigger('h:toggleLabels', {
             show: this._showLabels
         });
+	console.log('toggleLabels');
     },
 
     toggleInteractiveMode(evt) {
         this._interactiveMode = !this._interactiveMode;
         this.trigger('h:toggleInteractiveMode', this._interactiveMode);
+	console.log('toggleInteractiveMode');
     },
 
     interactiveMode() {
+	console.log('interactiveMode');
         return this._interactiveMode;
     },
 
     _editAnnotation(evt) {
         var id = $(evt.currentTarget).parents('.h-annotation').data('id');
         this.editAnnotation(this.collection.get(id));
+	console.log('_editAnnotation');
     },
 
     editAnnotation(model) {
         // deselect the annotation if it is already selected
+	console.log('editAnnotation');
         if (this._activeAnnotation && model && this._activeAnnotation.id === model.id) {
             this._activeAnnotation = null;
             this.trigger('h:editAnnotation', null);
@@ -274,6 +326,7 @@ var AnnotationSelector = Panel.extend({
         } else {
             this._setActiveAnnotationWithoutLoad(model);
         }
+	console.log('_setActiveAnnotation');
     },
 
     _setActiveAnnotationWithoutLoad(model) {
@@ -295,6 +348,7 @@ var AnnotationSelector = Panel.extend({
         } else {
             this.trigger('h:editAnnotation', model);
         }
+	console.log('_setActiveAnnotationWithoutLoad');
     },
 
     createAnnotation(evt) {
@@ -314,6 +368,7 @@ var AnnotationSelector = Panel.extend({
                 });
             }
         );
+	console.log('createANnottation');
     },
 
     _saveAnnotation(annotation) {
@@ -324,9 +379,13 @@ var AnnotationSelector = Panel.extend({
                 annotation._saving = false;
             });
         }
+	console.log('_saveAnnotation');
     },
 
     _writeAccess(annotation) {
+	console.log('_writeAccess');
+        console.log(AccessType.ADMIN);
+        console.log(annotation.get('_accessLevel'));
         return annotation.get('_accessLevel') >= AccessType.ADMIN;
     },
 
@@ -334,12 +393,14 @@ var AnnotationSelector = Panel.extend({
         this.collection.each((model) => {
             model.set('displayed', true);
         });
+	console.log('showAllAnnotations');
     },
 
     hideAllAnnotations() {
         this.collection.each((model) => {
             model.set('displayed', false);
         });
+	console.log('hideAllAnnotations');
     },
 
     _highlightAnnotation(evt) {
@@ -348,14 +409,17 @@ var AnnotationSelector = Panel.extend({
         if (model.get('displayed')) {
             this.parentView.trigger('h:highlightAnnotation', id);
         }
+	console.log('_highlightAnnotation');
     },
 
     _unhighlightAnnotation() {
         this.parentView.trigger('h:highlightAnnotation');
+	console.log('_unhighlightAnnotation');
     },
 
     _changeAnnotationHighlight(model) {
         this.$(`.h-annotation[data-id="${model.id}"]`).toggleClass('h-highlight-annotation', model.get('highlighted'));
+	console.log('_changeAnnotation');
     },
 
     _changeGlobalOpacity() {
@@ -363,6 +427,7 @@ var AnnotationSelector = Panel.extend({
         this.$('.h-annotation-opacity-container')
             .attr('title', `Annotation total opacity ${(this._opacity * 100).toFixed()}%`);
         this.trigger('h:annotationOpacity', this._opacity);
+	console.log('_changeGlobalOpacity');
     },
 
     _changeGlobalFillOpacity() {
@@ -370,6 +435,7 @@ var AnnotationSelector = Panel.extend({
         this.$('.h-annotation-fill-opacity-container')
             .attr('title', `Annotation fill opacity ${(this._fillOpacity * 100).toFixed()}%`);
         this.trigger('h:annotationFillOpacity', this._fillOpacity);
+	console.log('_changeGlobalFillOpacity');
     },
 
     _toggleExpandGroup(evt) {
@@ -380,6 +446,7 @@ var AnnotationSelector = Panel.extend({
             this._expandedGroups.add(name);
         }
         this.render();
+	console.log('_toggleExpandGroup');
     },
 
     _getAnnotationGroups() {
@@ -403,6 +470,7 @@ var AnnotationSelector = Panel.extend({
             groupObject[group] = _.sortBy(groupList, (a) => a.get('created'));
         });
         this._triggerGroupCountChange(groupObject);
+	console.log('_getAnnotationGroups');
         return groupObject;
     },
 
@@ -416,6 +484,7 @@ var AnnotationSelector = Panel.extend({
             }
         });
         this.trigger('h:groupCount', groupCount);
+	console.log('_triggerGroupCountChange');
     }
 });
 
