@@ -155,6 +155,17 @@ var ImageView = View.extend({
                 // store a reference to the underlying viewer
                 this.viewer = this.viewerWidget.viewer;
 
+                this.imageWidth = this.viewer.maxBounds().right;
+                this.imageHeight = this.viewer.maxBounds().bottom;
+                // allow panning off the image slightly
+                var extraPanWidth = 0.1, extraPanHeight = 0;
+                this.viewer.maxBounds({
+                    left: -this.imageWidth * extraPanWidth,
+                    right: this.imageWidth * (1 + extraPanWidth),
+                    top: -this.imageHeight * extraPanHeight,
+                    bottom: this.imageHeight * (1 + extraPanHeight)
+                });
+
                 // set the viewer bounds on first load
                 this.setImageBounds();
 
@@ -408,6 +419,11 @@ var ImageView = View.extend({
             }
             annotation.set('loading', true);
             annotation.fetch().then(() => {
+                // abandon this if the annotation should not longer be shown
+                // or we are now showing a different image.
+                if (!annotation.get('displayed') || annotation.get('itemId') !== this.model.id) {
+                    return null;
+                }
                 this.viewerWidget.drawAnnotation(annotation);
                 return null;
             }).always(() => {
