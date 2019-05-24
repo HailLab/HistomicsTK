@@ -2,6 +2,7 @@ import _ from 'underscore';
 
 import events from 'girder/events';
 import Panel from 'girder_plugins/slicer_cli_web/views/Panel';
+import { getCurrentUser } from 'girder/auth';
 
 import StyleCollection from '../collections/StyleCollection';
 import StyleModel from '../models/StyleModel';
@@ -37,8 +38,7 @@ var DrawWidget = Panel.extend({
         this.annotation = settings.annotation;
         this.collection = this.annotation.elements();
         this.viewer = settings.viewer;
-        this.setViewer(settings.viewer);
-        this._drawingType = settings.drawingType || null;
+        this._drawingType = settings.drawingType || 'line';
 
         this._highlighted = {};
         this._groups = new StyleCollection();

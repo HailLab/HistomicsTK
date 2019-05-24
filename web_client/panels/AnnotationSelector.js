@@ -61,6 +61,7 @@ var AnnotationSelector = Panel.extend({
         this.listenTo(girderEvents, 'g:login', () => {
             this.collection.reset();
             this._parentId = undefined;
+            this._currentUser = getCurrentUser();
         });
     },
 
@@ -129,7 +130,39 @@ var AnnotationSelector = Panel.extend({
      * annotations.
      */
     setViewer(viewer) {
-        this.viewer = viewer;
+		var onDomIsRendered = function(domString) {
+		  return new Promise(function(resolve, reject) {
+			function waitUntil() {
+			  setTimeout(function() {
+				if(this.$(domString).length > 0){
+				  resolve(this.$(domString));
+				}else {
+				  waitUntil();
+				}
+			  }, 100);
+			}
+			//start the loop
+			waitUntil();
+		  });
+		};
+
+		this.viewer = viewer;
+        this._currentUser = getCurrentUser()
+        const expert = this._currentUser.attributes.groups.indexOf('5bef3897e6291400ba908ab3') > 0;
+        if (!expert) {
+            //this.render();
+            this._expandedGroups.add('Other');
+            const v = this;
+            onDomIsRendered('.h-annotation-name[title="' + this._currentUser.attributes.login + '"]').then(function(annotation){
+                //this.render();
+				var userAnnotation = annotation.parents('.h-annotation').data('id');
+				if (userAnnotation) {
+					userAnnotation = v.collection.get(userAnnotation);
+					v.editAnnotation(userAnnotation);
+                    $('.h-annotation-selector').css('display', 'none');
+				}
+            });
+        }
         return this;
     },
 

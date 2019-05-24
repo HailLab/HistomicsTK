@@ -632,6 +632,7 @@ var ImageView = View.extend({
     },
 
     _processMouseClickQueue(evt) {
+        // @TODO: Is this efficient to sort the list every time a single element is extracted?
         const sorted = _.sortBy(this._mouseClickQueue, _.property('value'));
         this._mouseClickQueue = [];
         return sorted[0];
