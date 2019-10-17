@@ -499,8 +499,8 @@ var ImageView = View.extend({
         ];
         var width = region.right - region.left;
         var height = region.bottom - region.top;
-        var fillColor = 'rgba(255,255,255,0)';
-        var lineColor = 'rgba(0,0,0,1)';
+        var fillColor = 'rgba(74,204,181,0.29)';
+        var lineColor = 'rgba(0,212,186,0.82)';
         var lineWidth = 2;
         var rotation = 0;
         var annotation = new AnnotationModel({
@@ -668,6 +668,8 @@ var ImageView = View.extend({
         this.activeAnnotation = model;
         this._removeDrawWidget();
         if (model) {
+            console.log(this);
+            console.log(model);
             this.drawWidget = new DrawWidget({
                 parentView: this,
                 image: this.model,
@@ -696,8 +698,26 @@ var ImageView = View.extend({
     },
 
     _onKeyDown(evt) {
+        console.log(evt.key);
         if (evt.key === 'a') {
-            this._showOrHideAnnotations();
+            // this._showOrHideAnnotations();
+        } else if (evt.key === 'd') {
+            if (!this.$('.h-draw.active[data-type="line"]').length) {
+                this.drawWidget.drawElement(undefined, 'line');
+            } else {
+                this.drawWidget.cancelDrawMode();
+            }
+        } else if (evt.key === 's') {
+            console.log(this.$('.h-active-annotation .h-annotation-name[title="' + getCurrentUser().attributes.login + '"]').length);
+            const annotationState = this.$('.h-annotation-name[title="' + getCurrentUser().attributes.login + '"]').siblings('.icon-eye-off').length > 0;
+            const annotation = this.annotationSelector.setAnnotationLayer(annotationState);
+            const ann = this;
+            annotation.then(function(annotation) {
+                console.log('reset: ' + annotation.reset);
+                if (annotation.reset) {
+                    ann._removeDrawWidget();
+                }
+            });
         }
     },
 

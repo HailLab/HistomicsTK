@@ -104,16 +104,21 @@ for item in items:
     requests.post(annotations_access_url, headers=item_headers, data=json.dumps([a for a in annotations_dict if a not in annotations_details.values()]))
     annotation_access_update_url = args.url + ANNOTATION
     for aid, annotation in annotations_details.iteritems():
-        a = group_by_name[annotation['name']]
+        try:
+            a = group_by_name[annotation['name']]
+            #if a['firstName'] not in ['Xiaoqi']:
+            #    continue
 
-        access_dict["users"] = [
-        admin_user,
-        {
-            "flags": [],
-            "id": a['_id'],
-            "level": 2,
-            "login": a['login'],
-            "name": a['firstName'] + ' ' + a['lastName']
-        }]
-        requests.put(annotation_access_update_url + aid + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + '&public=false', headers=access_headers)
+            access_dict["users"] = [
+            admin_user,
+            {
+                "flags": [],
+                "id": a['_id'],
+                "level": 2,
+                "login": a['login'],
+                "name": a['firstName'] + ' ' + a['lastName']
+            }]
+            requests.put(annotation_access_update_url + aid + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + '&public=false', headers=access_headers)
+        except:
+            print "Skipped annotation of user " + annotation['name']
 

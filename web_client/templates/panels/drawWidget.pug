@@ -26,10 +26,18 @@ block content
         button.h-draw.btn.btn-default(
           type='button', data-type='polygon', data-toggle='tooltip', title='Draw a new polygon', class=drawingType === 'polygon' ? 'active' : null)
           | #[span.icon-star-empty]Polygon
-    .btn-group.btn-group-sm
+    .btn-group.btn-group-sm(role='group')
       button.h-draw.btn.btn-default(
         type='button', data-type='line', data-toggle='tooltip', title='Draw a new line', class=drawingType === 'line' ? 'active' : null)
         | #[span.icon-pencil]Draw
+    .btn-group.btn-group-sm(role='group')
+      button.h-pan.btn.btn-default(
+        type='button', data-toggle='tooltip', title='Pan the image', class=null)
+        | #[span.icon-move]Pan
+    .btn-group.btn-group-sm(role='group')
+      button.h-ok.btn.btn-default(
+        type='button', data-toggle='tooltip', title='No active arithemia', class=nogvhd ? 'active' : null)
+        | #[span.icon-ok]No epidermal activity
 
   if elements.length
     .h-elements-container

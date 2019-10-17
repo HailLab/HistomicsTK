@@ -63,6 +63,9 @@ var AnnotationSelector = Panel.extend({
             this._parentId = undefined;
             this._currentUser = getCurrentUser();
         });
+        console.log(eventStream.settings);
+        eventStream.settings.timeout = 240;  // 4 minutes, since timeout is set to 5 minutes I believe
+        console.log(eventStream.settings);
     },
 
     render() {
@@ -125,44 +128,64 @@ var AnnotationSelector = Panel.extend({
     },
 
     /**
+     * Set the annotation layer active for viewing for non expert viewers.
+     */
+    setAnnotationLayer(state) {
+        var onDomIsRendered = function(domString) {
+          return new Promise(function(resolve, reject) {
+            function waitUntil() {
+              setTimeout(function() {
+                if(this.$(domString).length > 0){
+                  resolve(this.$(domString));
+                }else {
+                  waitUntil();
+                }
+              }, 100);
+            }
+            //start the loop
+            waitUntil();
+          });
+        };
+        this._currentUser = getCurrentUser();
+        console.log(this._currentUser);
+        const expert = this._currentUser.attributes.groups.indexOf('5bef3897e6291400ba908ab3') > -1;
+        this._expandedGroups.add('Other');
+        const v = this;
+        var reset;
+        return onDomIsRendered('.h-annotation-name[title="' + this._currentUser.attributes.login + '"]').then(function(annotation){
+            var userAnnotation = annotation.parents('.h-annotation').data('id');
+            if (userAnnotation) {
+                userAnnotation = v.collection.get(userAnnotation);
+                console.log(userAnnotation.get('displayed'));
+                console.log(state);
+                if (!userAnnotation.get('displayed') && state) {
+                    // userAnnotation.set('highlight', true);
+                    // userAnnotation.set('displayed', true);
+                    v.editAnnotation(userAnnotation);
+                    if (!expert) {
+                        $('.h-annotation-selector').css('display', 'none');
+                    }
+                    annotation.reset = false;
+                }
+                if (!state) {
+                    console.log('hiding');
+                    userAnnotation.set('displayed', false);
+                    userAnnotation.unset('highlight');
+                    annotation.reset = true;
+                }
+            }
+            return annotation;
+        });
+    },
+
+    /**
      * Set the image "viewer" instance.  This should be a subclass
      * of `large_image/imageViewerWidget` that is capable of rendering
      * annotations.
      */
     setViewer(viewer) {
-		var onDomIsRendered = function(domString) {
-		  return new Promise(function(resolve, reject) {
-			function waitUntil() {
-			  setTimeout(function() {
-				if(this.$(domString).length > 0){
-				  resolve(this.$(domString));
-				}else {
-				  waitUntil();
-				}
-			  }, 100);
-			}
-			//start the loop
-			waitUntil();
-		  });
-		};
-
-		this.viewer = viewer;
-        this._currentUser = getCurrentUser()
-        const expert = this._currentUser.attributes.groups.indexOf('5bef3897e6291400ba908ab3') > 0;
-        if (!expert) {
-            //this.render();
-            this._expandedGroups.add('Other');
-            const v = this;
-            onDomIsRendered('.h-annotation-name[title="' + this._currentUser.attributes.login + '"]').then(function(annotation){
-                //this.render();
-				var userAnnotation = annotation.parents('.h-annotation').data('id');
-				if (userAnnotation) {
-					userAnnotation = v.collection.get(userAnnotation);
-					v.editAnnotation(userAnnotation);
-                    $('.h-annotation-selector').css('display', 'none');
-				}
-            });
-        }
+        this.viewer = viewer;
+        this.setAnnotationLayer(true);
         return this;
     },
 

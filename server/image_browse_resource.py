@@ -5,6 +5,8 @@ from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 
+import random
+
 
 def _isLargeImageItem(item):
     return item.get('largeImage', {}).get('fileId') is not None
@@ -23,10 +25,16 @@ class ImageBrowseResource(ItemResource):
         apiRoot.item.route('GET', (':id', 'previous_image'), self.getPreviousImage)
 
     def getAdjacentImages(self, currentImage):
+        user = self.getCurrentUser()
+        groups = [str(g) for g in user.get('groups', [])]
+        expert_group = '5bef3897e6291400ba908ab3'
         folderModel = Folder()
         folder = folderModel.load(
-            currentImage['folderId'], user=self.getCurrentUser(), level=AccessType.READ)
+            currentImage['folderId'], user=user, level=AccessType.READ)
         allImages = [item for item in folderModel.childItems(folder) if _isLargeImageItem(item)]
+        if expert_group not in groups:
+            random.seed(user.get('_id'))
+            random.shuffle(allImages)
         try:
             index = allImages.index(currentImage)
         except ValueError:

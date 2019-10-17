@@ -22,9 +22,10 @@ if parentChain
         span.g-item-breadcrumb-link(data-id=image.id, data-type='item')
           = image.name()
 button.btn.btn-default.navbar-btn.h-open-annotated-image(type='button')
-  | #[span.icon-list] Annotated images...
-button.btn.btn-default.navbar-btn.h-open-image(type='button')
-  | #[span.icon-picture] Open image...
+  | #[span.icon-list] Image list...
+if user && user.groups && user.groups.indexOf('5bef3897e6291400ba908ab3')
+  button.btn.btn-default.navbar-btn.h-open-image(type='button')
+    | #[span.icon-picture] Open image...
 span.h-links
   a.h-previous-image.btn.btn-default(href=previousImageLink, title='Previous image', disabled=!previousImageLink)
     i.icon-left-open

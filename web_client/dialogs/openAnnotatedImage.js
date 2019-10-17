@@ -97,16 +97,17 @@ const OpenAnnotatedImage = View.extend({
         this.collection._inFetch = true;
         delete this._nextQuery;
 
-        data.limit = 10;
+        data.limit = 50;
         restRequest({
             url: 'annotation/images',
             data
         }).then((_items) => {
             items = _items;
+            console.log(items);
             const promises = _.map(items, (item) => {
                 return this._getResourcePath(item);
             });
-            return $.when(...promises);
+            return $.when(...promises.sort());
         }).done(() => {
             this.collection._inFetch = false;
             this.collection.reset(items);
