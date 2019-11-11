@@ -668,7 +668,9 @@ var ImageView = View.extend({
         this.activeAnnotation = model;
         this._removeDrawWidget();
         if (model) {
+            console.log('anno edit anno: ');
             console.log(this);
+            console.log('model edit anno: ');
             console.log(model);
             this.drawWidget = new DrawWidget({
                 parentView: this,
@@ -698,7 +700,6 @@ var ImageView = View.extend({
     },
 
     _onKeyDown(evt) {
-        console.log(evt.key);
         if (evt.key === 'a') {
             // this._showOrHideAnnotations();
         } else if (evt.key === 'd') {
@@ -708,16 +709,23 @@ var ImageView = View.extend({
                 this.drawWidget.cancelDrawMode();
             }
         } else if (evt.key === 's') {
-            console.log(this.$('.h-active-annotation .h-annotation-name[title="' + getCurrentUser().attributes.login + '"]').length);
-            const annotationState = this.$('.h-annotation-name[title="' + getCurrentUser().attributes.login + '"]').siblings('.icon-eye-off').length > 0;
-            const annotation = this.annotationSelector.setAnnotationLayer(annotationState);
-            const ann = this;
-            annotation.then(function(annotation) {
-                console.log('reset: ' + annotation.reset);
-                if (annotation.reset) {
+            const annotation = this.annotationSelector.setAnnotationLayer(annotationState).then(function(annotation) {
+                if (!annotation.reset) {
+                    ann.annotationSelector.hideAllAnnotations();
+                    ann.mouseResetAnnotation()
                     ann._removeDrawWidget();
+                    ann._resetSelection();
                 }
             });
+            } else {
+                const annotation = this.annotationSelector.setAnnotationLayer(null).then(function(annotation) {
+                    ann.activeAnnotation.unset('highlight');
+                    ann.annotationSelector.hideAllAnnotations();
+                    ann.mouseResetAnnotation()
+                    ann._removeDrawWidget();
+                    ann._resetSelection();
+                });
+            }
         }
     },
 

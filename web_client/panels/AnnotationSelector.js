@@ -63,9 +63,7 @@ var AnnotationSelector = Panel.extend({
             this._parentId = undefined;
             this._currentUser = getCurrentUser();
         });
-        console.log(eventStream.settings);
         eventStream.settings.timeout = 240;  // 4 minutes, since timeout is set to 5 minutes I believe
-        console.log(eventStream.settings);
     },
 
     render() {
@@ -147,7 +145,6 @@ var AnnotationSelector = Panel.extend({
           });
         };
         this._currentUser = getCurrentUser();
-        console.log(this._currentUser);
         const expert = this._currentUser.attributes.groups.indexOf('5bef3897e6291400ba908ab3') > -1;
         this._expandedGroups.add('Other');
         const v = this;
@@ -156,11 +153,12 @@ var AnnotationSelector = Panel.extend({
             var userAnnotation = annotation.parents('.h-annotation').data('id');
             if (userAnnotation) {
                 userAnnotation = v.collection.get(userAnnotation);
-                console.log(userAnnotation.get('displayed'));
+                console.log('display:' + userAnnotation.get('displayed'));
+                console.log('state');
                 console.log(state);
                 if (!userAnnotation.get('displayed') && state) {
-                    // userAnnotation.set('highlight', true);
-                    // userAnnotation.set('displayed', true);
+                    userAnnotation.set('highlight', true);
+                    userAnnotation.set('displayed', true);
                     v.editAnnotation(userAnnotation);
                     if (!expert) {
                         $('.h-annotation-selector').css('display', 'none');
@@ -168,7 +166,6 @@ var AnnotationSelector = Panel.extend({
                     annotation.reset = false;
                 }
                 if (!state) {
-                    console.log('hiding');
                     userAnnotation.set('displayed', false);
                     userAnnotation.unset('highlight');
                     annotation.reset = true;
