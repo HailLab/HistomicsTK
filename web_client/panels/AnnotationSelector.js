@@ -37,6 +37,7 @@ var AnnotationSelector = Panel.extend({
         'change #h-toggle-interactive': 'toggleInteractiveMode',
         'input #h-annotation-opacity': '_changeGlobalOpacity',
         'input #h-annotation-fill-opacity': '_changeGlobalFillOpacity',
+        'click .h-annotation-select-by-region': 'selectAnnotationByRegion',
         'click .h-annotation-group-name': '_toggleExpandGroup'
     }),
 
@@ -53,7 +54,7 @@ var AnnotationSelector = Panel.extend({
         this._opacity = settings.opacity || 0.9;
         this._fillOpacity = settings.fillOpacity || 1.0;
         this._showAllAnnotationsState = false;
-        this.listenTo(this.collection, 'sync remove update reset change:displayed change:loading', this.render);
+        this.listenTo(this.collection, 'sync remove update reset change:displayed change:loading', this._debounceRender);
         this.listenTo(this.collection, 'change:highlight', this._changeAnnotationHighlight);
         this.listenTo(eventStream, 'g:event.job_status', _.debounce(this._onJobUpdate, 500));
         this.listenTo(eventStream, 'g:eventStream.start', this._refreshAnnotations);
@@ -67,6 +68,7 @@ var AnnotationSelector = Panel.extend({
     },
 
     render() {
+        this._debounceRenderRequest = null;
         const annotationGroups = this._getAnnotationGroups();
         this.$('[data-toggle="tooltip"]').tooltip('destroy');
         if (!this.viewer) {
@@ -97,6 +99,13 @@ var AnnotationSelector = Panel.extend({
         return this;
     },
 
+    _debounceRender() {
+        if (!this._debounceRenderRequest) {
+            this._debounceRenderRequest = window.requestAnimationFrame(() => { this.render(); });
+        }
+        return this;
+    },
+
     /**
      * Set the ItemModel associated with the annotation collection.
      * As a side effect, this resets the AnnotationCollection and
@@ -115,7 +124,7 @@ var AnnotationSelector = Panel.extend({
 
         if (!this._parentId) {
             this.collection.reset();
-            this.render();
+            this._debounceRender();
             return;
         }
         this.collection.offset = 0;
@@ -264,6 +273,8 @@ var AnnotationSelector = Panel.extend({
                         if (model.get('_version') !== models[model.id].get('_version')) {
                             model.refresh(true);
                             model.set('displayed', true);
+                        } else {
+                            model._centroids = models[model.id]._centroids;
                         }
                     }
                     // set without triggering a change; a change reloads and
@@ -271,7 +282,7 @@ var AnnotationSelector = Panel.extend({
                     model.attributes.displayed = models[model.id].get('displayed');
                 }
             });
-            this.render();
+            this._debounceRender();
             this._activeAnnotation = null;
             if (activeId) {
                 this._setActiveAnnotation(this.collection.get(activeId));
@@ -312,7 +323,7 @@ var AnnotationSelector = Panel.extend({
         if (this._activeAnnotation && model && this._activeAnnotation.id === model.id) {
             this._activeAnnotation = null;
             this.trigger('h:editAnnotation', null);
-            this.render();
+            this._debounceRender();
             return;
         }
 
@@ -415,6 +426,31 @@ var AnnotationSelector = Panel.extend({
         });
     },
 
+    selectAnnotationByRegion() {
+        const btn = this.$('.h-annotation-select-by-region');
+        // listen to escape key
+        $(document).on('keydown.h-annotation-select-by-region', (evt) => {
+            if (evt.keyCode === 27) {
+                btn.removeClass('active');
+                $(document).off('keydown.h-annotation-select-by-region');
+                this.parentView.trigger('h:selectElementsByRegionCancel');
+            }
+        });
+        this.listenToOnce(this.parentView, 'h:selectedElementsByRegion', () => {
+            btn.removeClass('active');
+            $(document).off('keydown.h-annotation-select-by-region');
+        });
+
+        if (!btn.hasClass('active')) {
+            btn.addClass('active');
+            this.parentView.trigger('h:selectElementsByRegion');
+        } else {
+            btn.removeClass('active');
+            $(document).off('keydown.h-annotation-select-by-region');
+            this.parentView.trigger('h:selectElementsByRegionCancel');
+        }
+    },
+
     _highlightAnnotation(evt) {
         const id = $(evt.currentTarget).data('id');
         const model = this.collection.get(id);
@@ -452,7 +488,7 @@ var AnnotationSelector = Panel.extend({
         } else {
             this._expandedGroups.add(name);
         }
-        this.render();
+        this._debounceRender();
     },
 
     _getAnnotationGroups() {

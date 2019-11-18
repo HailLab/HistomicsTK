@@ -1,4 +1,9 @@
-bumpversion>=0.5.3
+setuptools-scm
+Cython>=0.25.2
+scikit-build>=0.8.1
+cmake>=0.6.0
+numpy>=1.12.1
+
 cryptography>=1.0.1
 matplotlib>=2.2.0
 jupyter>=1.0.0

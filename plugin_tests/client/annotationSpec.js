@@ -13,6 +13,14 @@ girderTest.promise.done(function () {
     app = histomicsTest.startApp();
 });
 
+function asciiToUint8Array(text) {
+    var l = text.length, arr = new Uint8Array(l), i;
+    for (i = 0; i < l; i += 1) {
+        arr[i] = text.charCodeAt(i);
+    }
+    return arr;
+}
+
 $(function () {
     /**
      * This is a test helper method to make assertions about the last autosaved
@@ -510,6 +518,9 @@ $(function () {
 
                 // make sure all groups are expanded
                 $('.h-annotation-selector .h-group-collapsed .h-annotation-group-name').click();
+                waitsFor(function () {
+                    return !$('.h-annotation-selector').hasClass('h-group-collapsed');
+                }, 'groups to expand');
             });
 
             it('collapse an annotation group', function () {
@@ -517,10 +528,15 @@ $(function () {
                 expect($el.length).toBe(1);
                 $el.find('.h-annotation-group-name').click();
 
-                $el = $('.h-annotation-selector .h-annotation-group[data-group-name="Other"]');
-                expect($el.hasClass('h-group-collapsed')).toBe(true);
-                expect($el.hasClass('h-group-expanded')).toBe(false);
-                expect($el.find('.h-annotation').length).toBe(0);
+                waitsFor(function () {
+                    $el = $('.h-annotation-selector .h-annotation-group[data-group-name="Other"]');
+                    return $el.hasClass('h-group-collapsed');
+                }, 'group to collapse');
+                runs(function () {
+                    expect($el.hasClass('h-group-collapsed')).toBe(true);
+                    expect($el.hasClass('h-group-expanded')).toBe(false);
+                    expect($el.find('.h-annotation').length).toBe(0);
+                });
             });
 
             it('expand an annotation group', function () {
@@ -528,10 +544,15 @@ $(function () {
                 expect($el.length).toBe(1);
                 $el.find('.h-annotation-group-name').click();
 
-                $el = $('.h-annotation-selector .h-annotation-group[data-group-name="Other"]');
-                expect($el.hasClass('h-group-collapsed')).toBe(false);
-                expect($el.hasClass('h-group-expanded')).toBe(true);
-                expect($el.find('.h-annotation').length).toBeGreaterThan(0);
+                waitsFor(function () {
+                    $el = $('.h-annotation-selector .h-annotation-group[data-group-name="Other"]');
+                    return $el.hasClass('h-group-expanded');
+                }, 'group to expand');
+                runs(function () {
+                    expect($el.hasClass('h-group-collapsed')).toBe(false);
+                    expect($el.hasClass('h-group-expanded')).toBe(true);
+                    expect($el.find('.h-annotation').length).toBeGreaterThan(0);
+                });
             });
 
             it('ensure user cannot remove the admin annotation', function () {
@@ -612,6 +633,53 @@ $(function () {
                 }, 'annotation to toggle on');
             });
 
+            it('select annotations by rect - no hits', function () {
+                var interactor = histomicsTest.geojsMap().interactor();
+                expect($('.h-annotation-select-by-region').length).toBe(1);
+                $('.h-annotation-select-by-region').click();
+
+                interactor.simulateEvent('mousedown', {
+                    map: { x: 100, y: 100 },
+                    button: 'left'
+                });
+                interactor.simulateEvent('mousemove', {
+                    map: { x: 200, y: 200 },
+                    button: 'left'
+                });
+                interactor.simulateEvent('mouseup', {
+                    map: { x: 200, y: 200 },
+                    button: 'left'
+                });
+
+                expect($('#h-annotation-context-menu').is(':hidden')).toBe(true);
+            });
+
+            it('getElementsInBox', function () {
+                var viewer = app.bodyView.viewerWidget;
+                var boundingBox = {
+                    left: 0,
+                    top: 0,
+                    width: viewer.$el.width(),
+                    height: viewer.$el.height()
+                };
+
+                $('.h-show-all-annotations').click();
+                girderTest.waitForLoad();
+
+                waitsFor(function () {
+                    var $el = $('.h-annotation-selector');
+                    return $el.find('.icon-spin3').length === 0;
+                }, 'load all annotations');
+
+                runs(function () {
+                    var elements = app.bodyView.getElementsInBox(boundingBox);
+                    var countExistingElements = app.bodyView.annotations.reduce(function (acc, annotation) {
+                        return acc + annotation.elements.length;
+                    }, 0);
+                    expect(elements.length).toBe(countExistingElements);
+                });
+            });
+
             it('edit annotation metadata', function () {
                 runs(function () {
                     $('.h-annotation-selector .h-annotation:contains("drawn 1") .h-edit-annotation-metadata').click();
@@ -648,8 +716,10 @@ $(function () {
                 girderTest.waitForDialog();
                 runs(function () {
                     expect($('#h-annotation-name').val()).toBe('drawn 2');
+                    expect($('#h-annotation-line-width').length).toBe(1);
                     expect($('#h-annotation-line-color').length).toBe(1);
                     expect($('#h-annotation-fill-color').length).toBe(1);
+                    $('#h-annotation-line-width').val(2);
                     $('#h-annotation-line-color').val('black');
                     $('#h-annotation-fill-color').val('white');
                     $('.h-submit').click();
@@ -660,6 +730,7 @@ $(function () {
                     var annotation = app.bodyView.annotations.filter(function (annotation) {
                         return annotation.get('annotation').name === 'drawn 2';
                     })[0];
+                    expect(annotation.get('annotation').elements[0].lineWidth).toBe(2);
                     expect(annotation.get('annotation').elements[0].lineColor).toBe('rgb(0, 0, 0)');
                     expect(annotation.get('annotation').elements[0].fillColor).toBe('rgb(255, 255, 255)');
                 });
@@ -915,6 +986,10 @@ $(function () {
                     var $el = $('.h-annotation-selector');
                     return $el.find('.icon-spin3').length === 0;
                 }, 'loading spinners to disappear');
+                waitsFor(function () {
+                    var $el = $('.h-annotation-selector .h-annotation:contains("rectangle")');
+                    return $el.find('.icon-eye.h-toggle-annotation').length === 1;
+                }, 'annotation list to render');
                 runs(function () {
                     var $el = $('.h-annotation-selector .h-annotation:contains("rectangle")');
                     expect($el.find('.icon-eye.h-toggle-annotation').length).toBe(1);
@@ -954,7 +1029,14 @@ $(function () {
                     interactor.simulateEvent('mousemove', {
                         map: {x: 45, y: 45}
                     });
+                });
 
+                waitsFor(function () {
+                    var $el = $('#h-annotation-popover-container');
+                    return $el.find('.h-annotation-name').text() !== '';
+                }, 'popup window to update');
+
+                runs(function () {
                     var $el = $('#h-annotation-popover-container');
                     expect($el.hasClass('hidden')).toBe(false);
                     expect($el.find('.h-annotation-name').text()).toBe('rectangle');
@@ -1232,6 +1314,186 @@ $(function () {
                     $('.h-cancel').click();
                 });
                 girderTest.waitForLoad();
+            });
+
+            it('export style groups', function () {
+                runs(function () {
+                    $('.h-configure-style-group').click();
+                });
+                girderTest.waitForDialog();
+                runs(function () {
+                    $('#h-export').click();
+                    expect($('#h-export-link').attr('href').substr(0, 5)).toBe('blob:');
+                });
+                runs(function () {
+                    $('.h-cancel').click();
+                });
+                girderTest.waitForLoad();
+            });
+
+            it('import style groups', function () {
+                runs(function () {
+                    expect($('.h-style-group option').map(function () { return $(this).val(); }).get()).toEqual(['default']);
+                    $('.h-configure-style-group').click();
+                });
+                girderTest.waitForDialog();
+                runs(function () {
+                    var contents = [{
+                        lineWidth: 2,
+                        lineColor: 'rgb(0,0,0)',
+                        fillColor: 'rgba(0,0,0,0)',
+                        id: 'Black 2'
+                    }, {
+                        lineWidth: 4,
+                        lineColor: 'rgb(0, 0, 255)',
+                        fillColor: 'rgba(0, 0, 255, 0)',
+                        id: 'Blue 4'
+                    }];
+                    var file = new Blob(
+                        [asciiToUint8Array(JSON.stringify(contents))],
+                        {lastModified: null, type: 'application/json'});
+                    file.name = 'test1.json';
+                    // in the test environment, we can't actually upload a file
+                    // by clicking or setting the FileList of the upload
+                    // element.  click gratuitiously, then reach into the
+                    // jQuery event list and trigger the upload event manually.
+                    // We rely on the handler we want being the first
+                    // registered change event in the dialog.
+                    $('#h-import').click();
+                    $._data($('.h-style-editor')[0], 'events').change[0].handler({target: {files: [file]}});
+                });
+                waitsFor(function () {
+                    return $('.h-style-editor input.disabled').length === 0;
+                });
+                runs(function () {
+                    $('.h-submit').click();
+                });
+                girderTest.waitForLoad();
+                runs(function () {
+                    expect($('.h-style-group option').map(function () { return $(this).val(); }).get()).toEqual(['Black 2', 'Blue 4', 'default']);
+                });
+            });
+            it('import style groups, merging with existing', function () {
+                runs(function () {
+                    $('.h-configure-style-group').click();
+                });
+                girderTest.waitForDialog();
+                runs(function () {
+                    var contents = [{
+                        lineWidth: 4,
+                        lineColor: 'rgb(128, 128, 255)',
+                        fillColor: 'rgba(0, 0, 255, 0)',
+                        id: 'Blue 4'
+                    }, {
+                        lineWidth: 8,
+                        lineColor: 'rgb(255,0,0)',
+                        fillColor: 'rgba(255,0,0,0.25)',
+                        id: 'Red 8'
+                    }];
+                    var file = new Blob(
+                        [asciiToUint8Array(JSON.stringify(contents))],
+                        {lastModified: null, type: 'application/json'});
+                    file.name = 'test1.json';
+                    $._data($('.h-style-editor')[0], 'events').change[0].handler({target: {files: [file]}});
+                });
+                waitsFor(function () {
+                    return $('.h-style-editor input.disabled').length === 0;
+                });
+                runs(function () {
+                    $('.h-submit').click();
+                });
+                girderTest.waitForLoad();
+                runs(function () {
+                    expect($('.h-style-group option').map(function () { return $(this).val(); }).get()).toEqual(['Black 2', 'Blue 4', 'Red 8', 'default']);
+                });
+            });
+            it('import style groups, replacing existing', function () {
+                runs(function () {
+                    $('.h-configure-style-group').click();
+                });
+                girderTest.waitForDialog();
+                runs(function () {
+                    var contents = [{
+                        lineWidth: 4,
+                        lineColor: 'rgb(128, 128, 255)',
+                        fillColor: 'rgba(0, 0, 255, 0)',
+                        id: 'Blue 4'
+                    }, {
+                        lineWidth: 8,
+                        lineColor: 'rgb(255,0,0)',
+                        fillColor: 'rgba(255,0,0,0.25)',
+                        id: 'Red 8'
+                    }];
+                    var file = new Blob(
+                        [asciiToUint8Array(JSON.stringify(contents))],
+                        {lastModified: null, type: 'application/json'});
+                    file.name = 'test1.json';
+                    $('#h-import-replace').click();
+                    $._data($('.h-style-editor')[0], 'events').change[0].handler({target: {files: [file]}});
+                });
+                waitsFor(function () {
+                    return $('.h-style-editor input.disabled').length === 0;
+                });
+                runs(function () {
+                    $('.h-submit').click();
+                });
+                girderTest.waitForLoad();
+                runs(function () {
+                    expect($('.h-style-group option').map(function () { return $(this).val(); }).get()).toEqual(['Blue 4', 'Red 8', 'default']);
+                });
+            });
+            it('import style groups, cancel', function () {
+                runs(function () {
+                    $('.h-configure-style-group').click();
+                });
+                girderTest.waitForDialog();
+                runs(function () {
+                    var contents = [{
+                        lineWidth: 6,
+                        lineColor: 'rgb(0, 255, 0)',
+                        fillColor: 'rgba(0, 255, 0, 0)',
+                        id: 'Green 6'
+                    }];
+                    var file = new Blob(
+                        [asciiToUint8Array(JSON.stringify(contents))],
+                        {lastModified: null, type: 'application/json'});
+                    file.name = 'test1.json';
+                    $._data($('.h-style-editor')[0], 'events').change[0].handler({target: {files: [file]}});
+                });
+                waitsFor(function () {
+                    return $('.h-style-editor input.disabled').length === 0;
+                });
+                runs(function () {
+                    $('.h-cancel').click();
+                });
+                girderTest.waitForLoad();
+                runs(function () {
+                    expect($('.h-style-group option').map(function () { return $(this).val(); }).get()).toEqual(['Blue 4', 'Red 8', 'default']);
+                });
+            });
+            it('import style groups, error', function () {
+                runs(function () {
+                    $('.h-configure-style-group').click();
+                });
+                girderTest.waitForDialog();
+                runs(function () {
+                    var file = new Blob(
+                        [asciiToUint8Array(JSON.stringify('this is not json'))],
+                        {lastModified: null, type: 'application/json'});
+                    file.name = 'test1.json';
+                    $._data($('.h-style-editor')[0], 'events').change[0].handler({target: {files: [file]}});
+                });
+                waitsFor(function () {
+                    return $('.h-style-editor input.disabled').length === 0;
+                });
+                runs(function () {
+                    expect($('.g-validation-failed-message').text().indexOf('parse') >= 0);
+                    $('.h-cancel').click();
+                });
+                girderTest.waitForLoad();
+                runs(function () {
+                    expect($('.h-style-group option').map(function () { return $(this).val(); }).get()).toEqual(['Blue 4', 'Red 8', 'default']);
+                });
             });
         });
     });

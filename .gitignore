@@ -1,5 +1,6 @@
 *.pyc
 __pycache__/
+.ipynb_checkpoints
 *~
 *#
 .#*
@@ -10,6 +11,7 @@ build
 _build
 .coverage
 *.egg
+.eggs
 *.egg-info
 .cache
 .idea
@@ -23,3 +25,4 @@ _skbuild
 MANIFEST
 # cython output
 *.so
+wheels/

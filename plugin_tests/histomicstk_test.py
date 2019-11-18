@@ -8,7 +8,9 @@ import time
 
 from girder import config
 from girder.constants import AccessType
+from girder.models.folder import Folder
 from girder.models.group import Group
+from girder.models.item import Item
 from girder.models.model_base import ValidationException
 from girder.models.setting import Setting
 from girder.models.user import User
@@ -21,6 +23,7 @@ config.loadConfig()  # Must reload config to pickup correct port
 
 # boiler plate to start and stop the server
 def setUpModule():
+    config.getConfig()['histomicstk'] = {'restrict_downloads': True}
     base.enabledPlugins.append('HistomicsTK')
     base.startServer()
 
@@ -217,9 +220,12 @@ class HistomicsTKCoreTest(base.TestCase):
         self.assertStatusOk(resp)
         endTime = time.time() + 180  # maxTimeout
         while time.time() < endTime:
-            resp = self.request(path='/HistomicsTK/HistomicsTK/docker_image', user=self.admin)
-            if resp.output_status.startswith(b'200') and len(resp.json) == 1:
-                break
+            try:
+                resp = self.request(path='/HistomicsTK/HistomicsTK/docker_image', user=self.admin)
+                if resp.output_status.startswith(b'200') and len(resp.json) == 1:
+                    break
+            except (AssertionError, KeyError):
+                pass
             time.sleep(1)
 
         # Intially, access is public, so all users should see the entry,
@@ -252,3 +258,109 @@ class HistomicsTKCoreTest(base.TestCase):
             resp = self.request(path='/HistomicsTK/HistomicsTK/docker_image', user=user)
             self.assertStatusOk(resp)
             self.assertEqual(len(resp.json), count)
+
+    def testRestrictDownloads(self):
+        publicFolder = Folder().childFolders(
+            self.user, 'user', filters={'name': 'Public'}
+        ).next()
+        test_file = os.path.join(
+            os.environ['GIRDER_TEST_DATA_PREFIX'], 'plugins', 'HistomicsTK', 'Easy1.png')
+        with open(test_file, 'rb') as f:
+            file = self.uploadFile('image', f.read(), self.user, publicFolder)
+        resp = self.request(
+            path='/item/%s/download' % file['itemId'], user=self.user2, isJson=False)
+        self.assertStatusOk(resp)
+        resp = self.request(
+            path='/item/%s/download' % file['itemId'], user=None)
+        self.assertStatus(resp, 401)
+        resp = self.request(
+            path='/item/%s/tiles/images/noimage' % file['itemId'], user=self.user2)
+        self.assertStatus(resp, 400)
+        resp = self.request(
+            path='/item/%s/tiles/images/noimage' % file['itemId'], user=None)
+        self.assertStatus(resp, 401)
+
+    def testQuarantine(self):
+        from girder.plugins.HistomicsTK.constants import PluginSettings
+
+        publicFolder = Folder().childFolders(
+            self.user, 'user', filters={'name': 'Public'}
+        ).next()
+        adminFolder = Folder().childFolders(
+            self.admin, 'user', filters={'name': 'Public'}
+        ).next()
+        privateFolder = Folder().childFolders(
+            self.admin, 'user', filters={'name': 'Private'}, user=self.admin
+        ).next()
+        items = [Item().createItem(name, creator, folder) for name, creator, folder in [
+            ('userPublic1', self.user, publicFolder),
+            ('userPublic2', self.user, publicFolder),
+            ('adminPublic1', self.admin, adminFolder),
+            ('adminPublic2', self.admin, adminFolder),
+            ('adminPrivate1', self.admin, privateFolder),
+            ('adminPrivate2', self.admin, privateFolder),
+        ]]
+        resp = self.request(
+            method='PUT',
+            path='/HistomicsTK/quarantine/%s' % str(items[0]['_id']))
+        self.assertStatus(resp, 401)
+        self.assertIn('Write access denied', resp.json['message'])
+        resp = self.request(
+            method='PUT', user=self.user,
+            path='/HistomicsTK/quarantine/%s' % str(items[0]['_id']))
+        self.assertStatus(resp, 400)
+        self.assertIn('The quarantine folder is not configure', resp.json['message'])
+        key = PluginSettings.HISTOMICSTK_QUARANTINE_FOLDER
+        Setting().set(key, str(privateFolder['_id']))
+        resp = self.request(
+            method='PUT', user=self.user,
+            path='/HistomicsTK/quarantine/%s' % str(items[0]['_id']))
+        self.assertStatusOk(resp)
+        resp = self.request(
+            method='PUT', user=self.user,
+            path='/HistomicsTK/quarantine/%s' % str(items[0]['_id']))
+        self.assertStatus(resp, 403)
+        self.assertIn('Write access denied', resp.json['message'])
+        resp = self.request(
+            method='PUT', user=self.user,
+            path='/HistomicsTK/quarantine/%s' % str(items[2]['_id']))
+        self.assertStatus(resp, 403)
+        self.assertIn('Write access denied', resp.json['message'])
+        resp = self.request(
+            method='PUT', user=self.admin,
+            path='/HistomicsTK/quarantine/%s' % str(items[2]['_id']))
+        self.assertStatusOk(resp)
+        resp = self.request(
+            method='PUT', user=self.admin,
+            path='/HistomicsTK/quarantine/%s' % str(items[4]['_id']))
+        self.assertStatus(resp, 400)
+        self.assertIn('already in the quarantine', resp.json['message'])
+        # Restore
+        resp = self.request(
+            method='PUT', user=self.admin,
+            path='/HistomicsTK/quarantine/%s/restore' % str(items[1]['_id']))
+        self.assertStatus(resp, 400)
+        self.assertIn('no quarantine record', resp.json['message'])
+        resp = self.request(
+            method='PUT',
+            path='/HistomicsTK/quarantine/%s/restore' % str(items[0]['_id']))
+        self.assertStatus(resp, 401)
+        self.assertIn('Write access denied', resp.json['message'])
+        resp = self.request(
+            method='PUT', user=self.user,
+            path='/HistomicsTK/quarantine/%s/restore' % str(items[0]['_id']))
+        self.assertStatus(resp, 403)
+        self.assertIn('Write access denied', resp.json['message'])
+        resp = self.request(
+            method='PUT', user=self.admin,
+            path='/HistomicsTK/quarantine/%s/restore' % str(items[0]['_id']))
+        self.assertStatusOk(resp)
+        resp = self.request(
+            method='PUT', user=self.admin,
+            path='/HistomicsTK/quarantine/%s/restore' % str(items[0]['_id']))
+        self.assertStatus(resp, 400)
+        self.assertIn('no quarantine record', resp.json['message'])
+        resp = self.request(
+            method='PUT', user=self.user,
+            path='/HistomicsTK/quarantine/%s' % str(items[0]['_id']))
+        self.assertStatusOk(resp)

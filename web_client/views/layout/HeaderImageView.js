@@ -37,8 +37,12 @@ var HeaderImageView = View.extend({
 
     render() {
         const analysis = router.getQuery('analysis') ? `&analysis=${router.getQuery('analysis')}` : '';
-        const nextImageLink = this._nextImage ? `#?image=${this._nextImage}${analysis}` : null;
-        const previousImageLink = this._previousImage ? `#?image=${this._previousImage}${analysis}` : null;
+        const folder = router.getQuery('folder') ? `&folder=${router.getQuery('folder')}` : '';
+        let nextImageLink = this._nextImage;
+        if (this._nextImage && this._nextImage.indexOf('https://') < 0) {
+            nextImageLink = this._nextImage ? `#?image=${this._nextImage}${folder}${analysis}` : null;
+        }
+        const previousImageLink = this._previousImage ? `#?image=${this._previousImage}${folder}${analysis}` : null;
         this.$el.html(headerImageTemplate({
             image: this.imageModel,
             parentChain: this.parentChain,
@@ -50,6 +54,7 @@ var HeaderImageView = View.extend({
 
     _setNextPreviousImage() {
         const model = this.imageModel;
+        const folder = router.getQuery('folder') ? `?folderId=${router.getQuery('folder')}` : '';
         if (!model) {
             this._nextImage = null;
             this._previousImage = null;
@@ -59,18 +64,17 @@ var HeaderImageView = View.extend({
 
         $.when(
             restRequest({
-                url: `item/${model.id}/previous_image`
+                url: `item/${model.id}/previous_image${folder}`
             }).done((previous) => {
-                if (previous._id !== model.id) {
-                    this._previousImage = previous._id;
-                }
+                this._previousImage = (previous._id !== model.id) ? previous._id : null;
             }),
             restRequest({
-                url: `item/${model.id}/next_image`
+                url: `item/${model.id}/next_image${folder}`
             }).done((next) => {
-                if (next._id !== model.id) {
-                    this._nextImage = next._id;
-                }
+                this._nextImage = (next._id !== model.id) ? next._id : null;
+                // if (next._id == '5d9f9829e6291400c45dbbe1') {
+                //     this.nextImage = 'https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8';
+                // }
             })
         ).done(() => this.render());
     }
