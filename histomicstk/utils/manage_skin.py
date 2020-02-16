@@ -11,8 +11,8 @@ parser.add_argument('-t', '--token', type=str, default=os.environ.get('GIRDER_TO
 parser.add_argument('-u', '--url', type=str, default='https://skin.app.vumc.org/api/v1/',
                     help='Url for histomicsTK server')
 parser.add_argument('-f', '--folder', type=str, default='', help='Folder images are stored in for processing')
-parser.add_argument('-w', '--workergroup', type=str, default='5beb22cae6291400bcf9adde', help='ID for worker group')
-parser.add_argument('-a', '--admingroup', type=str, default='5bef3897e6291400ba908ab3', help='ID for admin group')
+parser.add_argument('-w', '--workergroup', type=str, default='5e310290e3c0d89a0744bf47', help='ID for worker group')
+parser.add_argument('-a', '--admingroup', type=str, default='5e3102c0e3c0d89a0744bf50', help='ID for admin group')
 parser.add_argument('-o', '--operation', type=str, default='process', choices=['process', 'export', 'status'],
                     help='What to do with images')
 args = parser.parse_args()
@@ -52,7 +52,7 @@ if args.operation == 'process':
     annotations_dict = [{'name': u['login'], 'description': u['firstName'] + ' ' + u['lastName']} for u in group]
     admin_user = {
         "flags": [],
-        "id": "5b48f1a192ca9a0124bcadf6",
+        "id": "5e2f35c7e7a8d01deb3964f3",
         "level": 2,
         "login": "admin",
         "name": "admin admin"

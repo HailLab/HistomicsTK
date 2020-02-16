@@ -27,7 +27,7 @@ class ImageBrowseResource(ItemResource):
     def getAdjacentImages(self, currentImage, currentFolder=None):
         user = self.getCurrentUser()
         groups = [str(g) for g in user.get('groups', [])]
-        expert_group = '5bef3897e6291400ba908ab3'
+        expert_group = '5e3102c0e3c0d89a0744bf50'
         folderModel = Folder()
         if currentFolder:
             folder = currentFolder
@@ -48,8 +48,8 @@ class ImageBrowseResource(ItemResource):
             index = allImages.index(currentImage)
         except ValueError:
             raise RestException('Id is not an image', 404)
-        if index >= len(allImages) - 1 and str(folder['_id']) == '5d9f675ae6291400c45dbb67':
-            nextImage = {u'size': 3016797, u'_id': u'https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8', u'description': u'', u'baseParentType': u'collection', u'baseParentId': u'5d9f8f87e6291400c45dbb85', u'creatorId': u'5b48f1a192ca9a0124bcadf6', u'folderId': u'5d9f675ae6291400c45dbb67', u'lowerName': u'survey.jpg', u'name': u'survey.JPG'}
+        if index >= len(allImages) - 1 and str(folder['_id']) == '5e471b311c7080564deb44fa':
+            nextImage = {u'size': 3016797, u'_id': u'https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8', u'description': u'', u'baseParentType': u'collection', u'baseParentId': u'5e4719631c7080564deb44e5', u'creatorId': u'5e2f35c7e7a8d01deb3964f3', u'folderId': u'5e471b311c7080564deb44fa', u'lowerName': u'survey.jpg', u'name': u'survey.JPG'}
         else:
             nextImage = allImages[(index + 1) % len(allImages)]
         return {
