@@ -122,6 +122,9 @@ var ImageView = View.extend({
                 this._closeContextMenu();
             }
         });
+        TimeMe.initialize({ 
+            currentPageName: this.model.id 
+        });
         this.render();
     },
     render() {
@@ -130,6 +133,7 @@ var ImageView = View.extend({
         // being hovered.
         this.mouseResetAnnotation();
         this._removeDrawWidget();
+        TimeMe.resetAllRecordedPageTimes();
 
         if (this.model.id === this._openId) {
             this.controlPanel.setElement('.h-control-panel-container').render();
@@ -235,6 +239,7 @@ var ImageView = View.extend({
         }
         this.controlPanel.setElement('.h-control-panel-container').render();
         this.popover.setElement('#h-annotation-popover-container').render();
+        TimeMe.startTimer()
         return this;
     },
     destroy() {
@@ -733,32 +738,19 @@ var ImageView = View.extend({
             } else {
                 this.drawWidget.cancelDrawMode();
             }
-        } else if (evt.key === 's') {
-            console.log('eye-length: ' + this.$('.h-active-annotation .h-annotation-name[title="' + getCurrentUser().attributes.login + '"]').length);
-            const ann = this;
-            this._selectElement(this.annotationSelector);
-            const annotationState = this.$('.h-annotation-name[title="' + getCurrentUser().attributes.login + '"]').siblings('.icon-eye-off').length > 0;
-            // this._selectElement(this.$('.h-active-annotation .h-annotation-name[title="' + getCurrentUser().attributes.login + '"]'));
-            if (annotationState) {
-				const annotation = this.annotationSelector.setAnnotationLayer(annotationState).then(function(annotation) {
-					if (!annotation.reset) {
-						ann.annotationSelector.hideAllAnnotations();
-						ann.mouseResetAnnotation()
-						ann._removeDrawWidget();
-						ann._resetSelection();
-					}
-				});
-            } else {
-				const annotation = this.annotationSelector.setAnnotationLayer(null).then(function(annotation) {
-					ann.activeAnnotation.unset('highlight');
-					ann.annotationSelector.hideAllAnnotations();
-					ann.mouseResetAnnotation()
-					ann._removeDrawWidget();
-					ann._resetSelection();
-				});
-            }
         } else if (evt.key === 'f') {
             this.annotationSelector.selectAnnotationByRegion();
+        } else if (evt.key === 's') {
+            console.log('s key pressed');
+            var opacity = this.$('#h-annotation-opacity').val();
+            console.log(opacity);
+            this._opacity = opacity > 0.5 ? 0.05 : 0.95;
+            this.$('.h-annotation-opacity-container')
+                .attr('title', `Annotation total opacity ${(this._opacity * 100).toFixed()}%`);
+            this.$('#h-annotation-opacity').val(this._opacity).trigger('change');
+            events.trigger('h:annotationOpacity', this._opacity);
+            //this._changeGlobalOpacity(this._opacity);
+            this._setAnnotationOpacity(this._opacity);
         }
     },
 

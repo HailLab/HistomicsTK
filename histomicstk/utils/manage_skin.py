@@ -13,8 +13,9 @@ parser.add_argument('-u', '--url', type=str, default='https://skin.app.vumc.org/
 parser.add_argument('-f', '--folder', type=str, default='', help='Folder images are stored in for processing')
 parser.add_argument('-w', '--workergroup', type=str, default='5e310290e3c0d89a0744bf47', help='ID for worker group')
 parser.add_argument('-a', '--admingroup', type=str, default='5e3102c0e3c0d89a0744bf50', help='ID for admin group')
-parser.add_argument('-o', '--operation', type=str, default='process', choices=['process', 'export', 'status'],
-                    help='What to do with images')
+parser.add_argument('-b', '--baselinegroup', type=str, default='5e4adaf4e246d984ad191224', help='ID for baseline group')
+parser.add_argument('-o', '--operation', type=str, default='process',
+                    choices=['process', 'export', 'status', 'process_baseline'], help='What to do with images')
 args = parser.parse_args()
 
 # scan images and create thumbnails
@@ -44,8 +45,9 @@ item_url = args.url + ITEM_API_URL + '?folderId=' + args.folder + ITEM_QUERY_STR
 items = requests.get(item_url, headers=item_headers)
 items = json.loads(items.content)
 
-if args.operation == 'process':
-    group_url = args.url + GROUP_API_URL + '/' + args.workergroup + '/member?ignore' + ITEM_QUERY_STRING
+if args.operation == 'process' or args.operation == 'process_baseline':
+    group_worker_or_baseline = args.workergroup if args.operation == 'process' else args.baselinegroup
+    group_url = args.url + GROUP_API_URL + '/' + group_worker_or_baseline + '/member?ignore' + ITEM_QUERY_STRING
     group = requests.get(group_url, headers=item_headers)
     group = json.loads(group.content)
     group_by_name = {g['login']: g for g in group}
@@ -78,6 +80,17 @@ if args.operation == 'process':
       ]
     }
 
+    if args.operation == 'process_baseline':
+        access_dict['groups'].append(
+            {
+              "description": "Demarcating cGVHD photos for potential inclusion in study.",
+              "flags": [],
+              "id": args.baselinegroup,
+              "level": 1,
+              "name": "Baseline"
+            }
+        )
+
     access_url = args.url + ACCESS_API_URL + '/' + args.folder + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + ACCESS_QUERY_STRING
     access = requests.put(access_url, headers=item_headers)
 
@@ -100,17 +113,20 @@ if args.operation == 'process':
         requests.post(annotations_access_url, headers=item_headers, data=json.dumps([a for a in annotations_dict if a not in annotations_details.values()]))
         annotation_access_update_url = args.url + ANNOTATION
         for aid, annotation in annotations_details.iteritems():
-            a = group_by_name[annotation['name']]
-            access_dict["users"] = [
-            admin_user,
-            {
-                "flags": [],
-                "id": a['_id'],
-                "level": 2,
-                "login": a['login'],
-                "name": a['firstName'] + ' ' + a['lastName']
-            }]
-            requests.put(annotation_access_update_url + aid + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + '&public=false', headers=access_headers)
+            try:
+                a = group_by_name[annotation['name']]
+                access_dict["users"] = [
+                admin_user,
+                {
+                    "flags": [],
+                    "id": a['_id'],
+                    "level": 2,
+                    "login": a['login'],
+                    "name": a['firstName'] + ' ' + a['lastName']
+                }]
+                requests.put(annotation_access_update_url + aid + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + '&public=false', headers=access_headers)
+            except KeyError:
+                print 'No user {0} in group'.format(annotation['name'])
 elif args.operation == 'export':
     for item in items:
         annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + item['_id']

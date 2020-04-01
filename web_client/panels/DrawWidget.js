@@ -20,6 +20,7 @@ var DrawWidget = Panel.extend({
         'click .h-edit-element': 'editElement',
         'click .h-delete-element': 'deleteElement',
         'click .h-draw': 'drawElement',
+        'click .h-pan': 'drawElement',
         'click .h-ok': 'noGvhd',
         'change .h-style-group': '_setStyleGroup',
         'click .h-configure-style-group': '_styleGroupEditor',
@@ -119,6 +120,7 @@ var DrawWidget = Panel.extend({
                 name
              }));
         }
+        console.log(this._drawingType);
         if (this._drawingType) {
             this.$('button.h-draw[data-type="' + this._drawingType + '"]').addClass('active');
             this.$('button.h-pan').removeClass('active');
@@ -150,6 +152,7 @@ var DrawWidget = Panel.extend({
      * @param {event} Girder event that triggered drawing a region.
      */
     _widgetDrawRegion(evt) {
+        console.log('h-pan active');
         this._drawingType = null;
         this.$('button.h-draw').removeClass('active');
         this.$('button.h-pan').addClass('active');
@@ -211,6 +214,8 @@ var DrawWidget = Panel.extend({
      */
     drawElement(evt, type) {
         var $el;
+        console.log('drawElement');
+        console.log(evt);
         if (evt) {
             $el = this.$(evt.currentTarget);
             $el.tooltip('hide');
@@ -230,6 +235,7 @@ var DrawWidget = Panel.extend({
         }
         if (type) {
             // always show the active annotation when drawing a new element
+            this.$('button.h-pan').removeClass('active');
             this.annotation.set('displayed', true);
 
             this._drawingType = type;
@@ -240,6 +246,8 @@ var DrawWidget = Panel.extend({
                     );
                     return undefined;
                 });
+        } else {
+            this.$('button.h-pan').addClass('active');
         }
     },
 
@@ -294,6 +302,7 @@ var DrawWidget = Panel.extend({
         this.drawElement(undefined, null);
         this.viewer.annotationLayer._boundHistomicsTKModeChange = false;
         this.viewer.annotationLayer.geoOff(window.geo.event.annotation.state);
+        console.log('pan-activate');
         this.$('button.h-pan').addClass('active');
     },
 

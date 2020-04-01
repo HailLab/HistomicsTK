@@ -4,14 +4,15 @@ block title
   | #[span.icon-pencil] #{title} #[span.h-panel-name #{name}]
 
 block content
-  .input-group.input-group-sm.h-style-group-row
-    select.form-control.h-style-group
-      each group in groups.sortBy('id')
-        option(value=group.id, selected=group.id === style)
-          = group.id
-    .input-group-btn
-      button.btn.btn-default.h-configure-style-group(type='button')
-        span.icon-cog(data-toggle='tooltip', title='Configure style group')
+  if user && user.get && user.get('admin')
+    .input-group.input-group-sm.h-style-group-row
+      select.form-control.h-style-group
+        each group in groups.sortBy('id')
+          option(value=group.id, selected=group.id === style)
+            = group.id
+      .input-group-btn
+        button.btn.btn-default.h-configure-style-group(type='button')
+          span.icon-cog(data-toggle='tooltip', title='Configure style group')
   .btn-group.btn-justified.btn-group-sm.h-draw-tools
     //-
       .btn-group.btn-group-sm
@@ -30,7 +31,6 @@ block content
       button.h-draw.btn.btn-default(
         type='button', data-type='line', data-toggle='tooltip', title='Draw a new line', class=drawingType === 'line' ? 'active' : null)
         | #[span.icon-pencil]Draw
-    .btn-group.btn-group-sm(role='group')
       button.h-pan.btn.btn-default(
         type='button', data-toggle='tooltip', title='Pan the image', class=null)
         | #[span.icon-move]Pan
