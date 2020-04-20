@@ -12,7 +12,7 @@ def _isLargeImageItem(item):
     return item.get('largeImage', {}).get('fileId') is not None
 
 
-class FolderFirstImageResource(ItemResource):
+class FolderFirstImageResource(FolderResource):
     """Extends the "folder" resource to get the first image."""
 
     def __init__(self, apiRoot):
