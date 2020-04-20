@@ -37,12 +37,15 @@ var HeaderImageView = View.extend({
 
     render() {
         const analysis = router.getQuery('analysis') ? `&analysis=${router.getQuery('analysis')}` : '';
-        const folder = router.getQuery('folder') ? `&folder=${router.getQuery('folder')}` : '';
+        const folder = router.getQuery('folder') ? `&folder=${router.getQuery('folder')}` : '&folder=5e471b311c7080564deb44fa';
         let nextImageLink = this._nextImage;
         if (this._nextImage && this._nextImage.indexOf('https://') < 0) {
             nextImageLink = this._nextImage ? `#?image=${this._nextImage}${folder}${analysis}` : null;
         }
         const previousImageLink = this._previousImage ? `#?image=${this._previousImage}${folder}${analysis}` : null;
+        console.log('headerImage');
+        console.log(folder);
+        console.log(nextImageLink);
         this.$el.html(headerImageTemplate({
             image: this.imageModel,
             parentChain: this.parentChain,
