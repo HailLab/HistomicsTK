@@ -2,6 +2,7 @@ import _ from 'underscore';
 
 import events from 'girder/events';
 import Panel from 'girder_plugins/slicer_cli_web/views/Panel';
+import { getCurrentUser } from 'girder/auth';
 
 import StyleCollection from '../collections/StyleCollection';
 import StyleModel from '../models/StyleModel';
@@ -19,6 +20,8 @@ var DrawWidget = Panel.extend({
         'click .h-edit-element': 'editElement',
         'click .h-delete-element': 'deleteElement',
         'click .h-draw': 'drawElement',
+        'click .h-pan': 'drawElement',
+        'click .h-ok': 'noGvhd',
         'change .h-style-group': '_setStyleGroup',
         'click .h-configure-style-group': '_styleGroupEditor',
         'mouseenter .h-element': '_highlightElement',
@@ -37,8 +40,7 @@ var DrawWidget = Panel.extend({
         this.annotation = settings.annotation;
         this.collection = this.annotation.elements();
         this.viewer = settings.viewer;
-        this.setViewer(settings.viewer);
-        this._drawingType = settings.drawingType || null;
+        this._drawingType = settings.drawingType || 'line';
 
         this._highlighted = {};
         this._groups = new StyleCollection();
@@ -69,7 +71,7 @@ var DrawWidget = Panel.extend({
         });
     },
 
-    render() {
+   render() {
         this.$('[data-toggle="tooltip"]').tooltip('destroy');
         if (!this.viewer) {
             this.$el.empty();
@@ -78,6 +80,33 @@ var DrawWidget = Panel.extend({
         }
         const name = (this.annotation.get('annotation') || {}).name || 'Untitled';
         this.trigger('h:redraw', this.annotation);
+        var nogvhd = false;
+        console.log(this);
+        var item = $.ajax({
+            url: '/api/v1/item/' + this.image.attributes._id,
+            beforeSend: function(request) {
+                var getCookie = function(name) {
+                    var value = "; " + document.cookie;
+                    var parts = value.split("; " + name + "=");
+                    if (parts.length == 2)
+                        return parts.pop().split(";").shift();
+                };
+                request.setRequestHeader('girder-token', getCookie('girderToken'));
+            },
+            type: 'GET',
+            cache: false,
+            timeout: 5000,
+            success: function(data) {
+                console.log(data.meta);
+            }, error: function(jqXHR, textStatus, errorThrown) {
+                alert('error ' + textStatus + " " + errorThrown);
+            },
+            async: false
+        });
+        if ('meta' in item.responseJSON && 'nogvhd-' + this.annotation.attributes.annotation.name.replace(/\./g, '') in item.responseJSON.meta) {
+            nogvhd = !!item.responseJSON.meta['nogvhd-' + this.annotation.attributes.annotation.name.replace(/\./g, '')];
+        }
+        // console.log(JSON.stringify(JSON.decycle(this)));
         if (this._skipRenderHTML) {
             delete this._skipRenderHTML;
         } else {
@@ -87,11 +116,14 @@ var DrawWidget = Panel.extend({
                 groups: this._groups,
                 style: this._style.id,
                 highlighted: this._highlighted,
+                nogvhd: nogvhd,
                 name
-            }));
+             }));
         }
+        console.log(this._drawingType);
         if (this._drawingType) {
             this.$('button.h-draw[data-type="' + this._drawingType + '"]').addClass('active');
+            this.$('button.h-pan').removeClass('active');
             this.drawElement(undefined, this._drawingType);
         }
         this.$('.s-panel-content').collapse({toggle: false});
@@ -100,9 +132,7 @@ var DrawWidget = Panel.extend({
             this.viewer.annotationLayer._boundHistomicsTKModeChange = true;
             this.viewer.annotationLayer.geoOn(window.geo.event.annotation.mode, (event) => {
                 this.$('button.h-draw').removeClass('active');
-                if (this._drawingType) {
-                    this.$('button.h-draw[data-type="' + this._drawingType + '"]').addClass('active');
-                }
+                this.$('button.h-draw[data-type="' + this._drawingType + '"]').addClass('active');
                 if (event.mode !== this._drawingType && this._drawingType) {
                     /* This makes the draw modes stay on until toggled off.
                      * To turn off drawing after each annotation, add
@@ -122,8 +152,10 @@ var DrawWidget = Panel.extend({
      * @param {event} Girder event that triggered drawing a region.
      */
     _widgetDrawRegion(evt) {
+        console.log('h-pan active');
         this._drawingType = null;
         this.$('button.h-draw').removeClass('active');
+        this.$('button.h-pan').addClass('active');
     },
 
     /**
@@ -182,12 +214,15 @@ var DrawWidget = Panel.extend({
      */
     drawElement(evt, type) {
         var $el;
+        console.log('drawElement');
+        console.log(evt);
         if (evt) {
             $el = this.$(evt.currentTarget);
             $el.tooltip('hide');
             type = $el.hasClass('active') ? null : $el.data('type');
         } else {
             $el = this.$('button.h-draw[data-type="' + type + '"]');
+            this.$('button.h-pan').removeClass('active');
         }
         if (this.viewer.annotationLayer.mode() === type && this._drawingType === type) {
             return;
@@ -200,6 +235,7 @@ var DrawWidget = Panel.extend({
         }
         if (type) {
             // always show the active annotation when drawing a new element
+            this.$('button.h-pan').removeClass('active');
             this.annotation.set('displayed', true);
 
             this._drawingType = type;
@@ -210,17 +246,80 @@ var DrawWidget = Panel.extend({
                     );
                     return undefined;
                 });
+        } else {
+            this.$('button.h-pan').addClass('active');
         }
+    },
+
+    /**
+     * Mark image as not containing any GVHD by storing in metadata.
+     *
+     * @param {jQuery.Event} [evt] The button click that triggered this event.
+     *      `undefined` to use a passed-in type.
+     */
+    noGvhd(evt) {
+        var $el;
+        var active = false;
+        if (evt) {
+            $el = this.$(evt.currentTarget);
+            $el.tooltip('hide');
+            active = $el.hasClass('active');
+        }
+        if (this.viewer.annotationLayer.mode()) {
+            this._drawingType = null;
+            this.viewer.annotationLayer.mode(null);
+            this.viewer.annotationLayer.geoOff(window.geo.event.annotation.state);
+            this.viewer.annotationLayer.removeAllAnnotations();
+        }
+        var data = {};
+        data["nogvhd-" + this.annotation.attributes.annotation.name.replace(/\./g, '')] = !active;
+        var item = $.ajax({
+            url: '/api/v1/item/' + this.image.attributes._id + '/metadata',
+            beforeSend: function(request) {
+                var getCookie = function(name) {
+                    var value = "; " + document.cookie;
+                    var parts = value.split("; " + name + "=");
+                    if (parts.length == 2)
+                        return parts.pop().split(";").shift();
+                };
+                request.setRequestHeader('girder-token', getCookie('girderToken'));
+            },
+            data: JSON.stringify(data),
+            contentType: "application/json; charset=utf-8",
+            type: 'PUT',
+            cache: false,
+            timeout: 5000,
+            success: function(data) {
+                console.log(data);
+                $el.toggleClass('active');
+            }, error: function(jqXHR, textStatus, errorThrown) {
+                alert('error ' + textStatus + " " + errorThrown);
+            }
+        });
     },
 
     cancelDrawMode() {
         this.drawElement(undefined, null);
         this.viewer.annotationLayer._boundHistomicsTKModeChange = false;
         this.viewer.annotationLayer.geoOff(window.geo.event.annotation.state);
+        console.log('pan-activate');
+        this.$('button.h-pan').addClass('active');
     },
 
     drawingType() {
         return this._drawingType;
+    },
+
+    _onKeyDown(evt) {
+        console.log(evt);
+        if (evt.key === 'd') {
+            console.log(this.$('.h-draw.active[data-type="line"]'));
+            if (this.$('.h-draw.active[data-type="line"]')) {
+                this.drawElement(undefined, 'line');
+            } else {
+                this.cancelDrawMode();
+            }
+        }
     },
 
     /**

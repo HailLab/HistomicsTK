@@ -9,6 +9,8 @@ import router from '../router';
 import zoomWidget from '../templates/panels/zoomWidget.pug';
 import '../stylesheets/panels/zoomWidget.styl';
 
+import { getCurrentUser } from 'girder/auth';
+
 /**
  * Define a widget for controlling the view magnification with
  * a dynamic slider and buttons.
@@ -91,6 +93,15 @@ var ZoomWidget = Panel.extend({
 
         // set the text value on the readonly input box
         this._zoomSliderInput();
+
+        const user = getCurrentUser();
+        const expert = user.attributes.groups.indexOf('5e3102c0e3c0d89a0744bf50') > 0;
+        console.log(this);
+
+        if (!expert) {
+            //$('.h-download-button-container').css('display', 'none');
+            $('.h-download-button-container').css('display', 'none');
+        }
 
         return this;
     },

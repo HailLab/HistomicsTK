@@ -122,6 +122,9 @@ var ImageView = View.extend({
                 this._closeContextMenu();
             }
         });
+        TimeMe.initialize({ 
+            currentPageName: this.model.id 
+        });
         this.render();
     },
     render() {
@@ -235,6 +238,7 @@ var ImageView = View.extend({
         }
         this.controlPanel.setElement('.h-control-panel-container').render();
         this.popover.setElement('#h-annotation-popover-container').render();
+        TimeMe.startTimer()
         return this;
     },
     destroy() {
@@ -248,6 +252,44 @@ var ImageView = View.extend({
     },
     openImage(id) {
         /* eslint-disable backbone/no-silent */
+        if (TimeMe.getTimeOnCurrentPageInSeconds() > 6) {
+            if ('activeAnnotation' in this && 'attributes' in this.activeAnnotation && this.activeAnnotation.attributes.annotation.name) {
+                const anno = this.activeAnnotation.attributes.annotation.name;
+                // Seems to set even bedore navigating away if you move window to background 
+                var data = {};
+                if (('time-' + anno) in this.model.attributes.meta && this.model.attributes.meta['time-' + anno]) {
+                    data["time-" + anno] = TimeMe.getTimeOnCurrentPageInSeconds() + parseFloat(this.model.attributes.meta['time-' + anno]);
+                } else {
+                    data["time-" + anno] = TimeMe.getTimeOnCurrentPageInSeconds();
+                }
+                data['zoom-' + anno] = this.model.attributes.meta['zoom-' + anno];
+                var item = $.ajax({
+                    url: '/api/v1/item/' + this.model.attributes._id + '/metadata',
+                    beforeSend: function(request) {
+                        var getCookie = function(name) {
+                            var value = "; " + document.cookie; 
+                            var parts = value.split("; " + name + "=");
+                            if (parts.length == 2)
+                                return parts.pop().split(";").shift();
+                        };
+                        request.setRequestHeader('girder-token', getCookie('girderToken'));
+                    },
+                    data: JSON.stringify(data),
+                    contentType: "application/json; charset=utf-8",
+                    type: 'PUT',
+                    cache: false,
+                    timeout: 5000,
+                    success: function(data) {
+                        console.log(data);
+                    }, error: function(jqXHR, textStatus, errorThrown) {
+                        alert('error ' + textStatus + " " + errorThrown);
+                    }
+                });
+            }
+        }
+
+        TimeMe.resetAllRecordedPageTimes();
+
         this.model.clear({silent: true});
         delete this.model.parent;
         if (id) {
@@ -522,8 +564,8 @@ var ImageView = View.extend({
         ];
         var width = region.right - region.left;
         var height = region.bottom - region.top;
-        var fillColor = 'rgba(255,255,255,0)';
-        var lineColor = 'rgba(0,0,0,1)';
+        var fillColor = 'rgba(74,204,181,0.29)';
+        var lineColor = 'rgba(0,212,186,0.82)';
         var lineWidth = 2;
         var rotation = 0;
         var annotation = new AnnotationModel({
@@ -657,6 +699,7 @@ var ImageView = View.extend({
     },
 
     _processMouseClickQueue(evt) {
+        // @TODO: Is this efficient to sort the list every time a single element is extracted?
         const sorted = _.sortBy(this._mouseClickQueue, _.property('value'));
         this._mouseClickQueue = [];
         return sorted[0];
@@ -692,6 +735,10 @@ var ImageView = View.extend({
         this.activeAnnotation = model;
         this._removeDrawWidget();
         if (model) {
+            console.log('anno edit anno: ');
+            console.log(this);
+            console.log('model edit anno: ');
+            console.log(model);
             this.drawWidget = new DrawWidget({
                 parentView: this,
                 image: this.model,
@@ -721,13 +768,35 @@ var ImageView = View.extend({
 
     _onKeyDown(evt) {
         if (evt.key === 'a') {
-            this._showOrHideAnnotations();
-        } else if (evt.key === 's') {
+            // this._showOrHideAnnotations();
+        } else if (evt.key === 'd') {
+            if (!this.$('.h-draw.active[data-type="line"]').length) {
+                this.drawWidget.drawElement(undefined, 'line');
+            } else {
+                this.drawWidget.cancelDrawMode();
+            }
+        } else if (evt.key === 'f') {
             this.annotationSelector.selectAnnotationByRegion();
+        } else if (evt.key === 's') {
+            var opacity = this.$('#h-annotation-opacity').val();
+            this._opacity = opacity > 0.5 ? 0.05 : 0.95;
+            this.$('.h-annotation-opacity-container')
+                .attr('title', `Annotation total opacity ${(this._opacity * 100).toFixed()}%`);
+            this.$('#h-annotation-opacity').val(this._opacity).trigger('change');
+            events.trigger('h:annotationOpacity', this._opacity);
+            this._setAnnotationOpacity(this._opacity);
         }
     },
 
     _trackMousePosition(evt) {
+        console.log(this);
+        if ('activeAnnotation' in this && 'attributes' in this.activeAnnotation && this.activeAnnotation.attributes.annotation.name) {
+            const anno = this.activeAnnotation.attributes.annotation.name;
+            const zoom = parseFloat(this.viewer.zoom());
+            if ((('zoom-' + anno) in this.model.attributes.meta && this.model.attributes.meta['zoom-' + anno] && zoom > parseFloat(this.model.attributes.meta['zoom-' + anno])) || !(('zoom-' + anno) in this.model.attributes.meta)) {
+                this.model.attributes.meta['zoom-' + anno] = zoom;
+            }
+        }
         this._currentMousePosition = {
             page: {
                 x: evt.pageX,

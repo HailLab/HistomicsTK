@@ -62,7 +62,9 @@ var AnnotationSelector = Panel.extend({
         this.listenTo(girderEvents, 'g:login', () => {
             this.collection.reset();
             this._parentId = undefined;
+            this._currentUser = getCurrentUser();
         });
+        eventStream.settings.timeout = 240;  // 4 minutes, since timeout is set to 5 minutes I believe
     },
 
     render() {
@@ -138,12 +140,63 @@ var AnnotationSelector = Panel.extend({
     },
 
     /**
+     * Set the annotation layer active for viewing for non expert viewers.
+     */
+    setAnnotationLayer(state) {
+        var onDomIsRendered = function(domString) {
+          return new Promise(function(resolve, reject) {
+            function waitUntil() {
+              setTimeout(function() {
+                if(this.$(domString).length > 0){
+                  resolve(this.$(domString));
+                }else {
+                  waitUntil();
+                }
+              }, 100);
+            }
+            //start the loop
+            waitUntil();
+          });
+        };
+        this._currentUser = getCurrentUser();
+        const expert = this._currentUser.attributes.groups.indexOf('5e3102c0e3c0d89a0744bf50') > -1;
+        this._expandedGroups.add('Other');
+        const v = this;
+        var reset;
+        return onDomIsRendered('.h-annotation-name[title="' + this._currentUser.attributes.login + '"]').then(function(annotation){
+            var userAnnotation = annotation.parents('.h-annotation').data('id');
+            if (userAnnotation) {
+                userAnnotation = v.collection.get(userAnnotation);
+                console.log('display:' + userAnnotation.get('displayed'));
+                console.log('state');
+                console.log(state);
+                if (!userAnnotation.get('displayed') && state) {
+                    userAnnotation.set('highlight', true);
+                    userAnnotation.set('displayed', true);
+                    v.editAnnotation(userAnnotation);
+                    if (!expert) {
+                        $('.h-annotation-selector').css('display', 'none');
+                    }
+                    annotation.reset = false;
+                }
+                if (!state) {
+                    userAnnotation.set('displayed', false);
+                    userAnnotation.unset('highlight');
+                    annotation.reset = true;
+                }
+            }
+            return annotation;
+        });
+    },
+
+    /**
      * Set the image "viewer" instance.  This should be a subclass
      * of `large_image/imageViewerWidget` that is capable of rendering
      * annotations.
      */
     setViewer(viewer) {
         this.viewer = viewer;
+        this.setAnnotationLayer(true);
         return this;
     },
 

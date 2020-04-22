@@ -26,6 +26,7 @@ from girder.plugins.slicer_cli_web.docker_resource import DockerResource
 from .handlers import process_annotations
 from .constants import PluginSettings
 from .image_browse_resource import ImageBrowseResource
+from .folder_first_image import FolderFirstImageResource
 from . import ctk_cli_adjustment  # noqa - for side effects
 
 from girder.models.model_base import ModelImporter
@@ -292,6 +293,7 @@ def load(info):
     histomicsRoot.updateHtmlVars(girderRoot.vars)
 
     ImageBrowseResource(info['apiRoot'])
+    FolderFirstImageResource(info['apiRoot'])
 
     # The interface is always available under histomicstk and also available
     # under the specified path.

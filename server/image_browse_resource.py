@@ -5,6 +5,8 @@ from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 
+import random
+
 
 def _isLargeImageItem(item):
     return item.get('largeImage', {}).get('fileId') is not None
@@ -23,12 +25,15 @@ class ImageBrowseResource(ItemResource):
         apiRoot.item.route('GET', (':id', 'previous_image'), self.getPreviousImage)
 
     def getAdjacentImages(self, currentImage, currentFolder=None):
+        user = self.getCurrentUser()
+        groups = [str(g) for g in user.get('groups', [])]
+        expert_group = '5e3102c0e3c0d89a0744bf50'
         folderModel = Folder()
         if currentFolder:
             folder = currentFolder
         else:
             folder = folderModel.load(
-                currentImage['folderId'], user=self.getCurrentUser(), level=AccessType.READ)
+                currentImage['folderId'], user=user, level=AccessType.READ)
 
         if folder.get('isVirtual'):
             children = folderModel.childItems(folder, includeVirtual=True)
@@ -36,14 +41,20 @@ class ImageBrowseResource(ItemResource):
             children = folderModel.childItems(folder)
 
         allImages = [item for item in children if _isLargeImageItem(item)]
+        if expert_group not in groups:
+            random.seed(user.get('_id'))
+            random.shuffle(allImages)
         try:
             index = allImages.index(currentImage)
         except ValueError:
             raise RestException('Id is not an image', 404)
-
+        if index >= len(allImages) - 1 and str(folder['_id']) == '5e471b311c7080564deb44fa':
+            nextImage = {u'size': 3016797, u'_id': u'https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8', u'description': u'', u'baseParentType': u'collection', u'baseParentId': u'5e4719631c7080564deb44e5', u'creatorId': u'5e2f35c7e7a8d01deb3964f3', u'folderId': u'5e471b311c7080564deb44fa', u'lowerName': u'survey.jpg', u'name': u'survey.JPG'}
+        else:
+            nextImage = allImages[(index + 1) % len(allImages)]
         return {
             'previous': allImages[index - 1],
-            'next': allImages[(index + 1) % len(allImages)]
+            'next': nextImage
         }
 
     @access.public
