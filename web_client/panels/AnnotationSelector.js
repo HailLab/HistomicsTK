@@ -159,7 +159,7 @@ var AnnotationSelector = Panel.extend({
           });
         };
         this._currentUser = getCurrentUser();
-        const expert = this._currentUser.attributes.groups.indexOf('5bef3897e6291400ba908ab3') > -1;
+        const expert = this._currentUser.attributes.groups.indexOf('5e3102c0e3c0d89a0744bf50') > -1;
         this._expandedGroups.add('Other');
         const v = this;
         var reset;

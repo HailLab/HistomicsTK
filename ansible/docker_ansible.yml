@@ -46,7 +46,7 @@
     root_dir: /opt/histomicstk
     girder_admin_user: admin
     girder_admin_email: histomicstk.admin@kitware.com
-    girder_admin_password: password
+    girder_admin_password: J0x0ZF6ZduzS*4puhCGa
     girder_socket_port: 8080
     girder_socket_scheme: http
     girder_exec_user: ubuntu

@@ -180,7 +180,7 @@ def containers_start(port=8080, rmq='docker', mongo='docker', provision=False,
         containers_provision(**kwargs)
 
 
-def container_start_histomicstk(client, env, key='histomicstk', port=8080,
+def container_start_histomicstk(client, env, key='histomicstk', port=80,
                                 rmq='docker', mongo='docker', provision=False,
                                 **kwargs):
     """
