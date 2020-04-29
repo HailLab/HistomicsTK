@@ -935,6 +935,9 @@ if __name__ == '__main__':   # noqa
         help='The path to use for the girder_worker tmp_root.  This must be '
         'reachable by the HistomicsTK and the girder_worker docker '
         'containers.  It cannot be a top-level directory.')
+    parser.add_argument(
+        '--htk', '--histomickstk', '-t', default='~/HistomicsTK',
+        help='Path to HistomicksTK for binding.')
     parser.add_argument('--verbose', '-v', action='count', default=0)
 
     # Should we add an optional url or host value for rmq and mongo?
