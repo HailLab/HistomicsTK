@@ -216,6 +216,7 @@ def container_start_histomicstk(client, env, key='histomicstk', port=80,
                 get_path(kwargs['logs']) + ':/opt/logs:rw',
                 get_path(kwargs['logs']) + ':/opt/histomicstk/logs:rw',
                 get_path(kwargs['assetstore']) + ':/opt/histomicstk/assetstore:rw',
+                get_path(kwargs['htk']) + ':/home/ubuntu/HistomicsTK:rw',
             ],
         }
         config['binds'].extend(docker_mounts())
@@ -286,6 +287,7 @@ def container_start_mongodb(client, env, key='mongodb', mongo='docker',
                 params['volumes'] = ['/data/db']
                 config['binds'] = [
                     get_path(mongodb_path) + ':/data/db:rw',
+                    get_path(kwargs['htk']) + ':/home/ubuntu/HistomicsTK:rw',
                 ]
             print('Creating %s - %s' % (image, name))
             ctn = client.create_container(
@@ -375,6 +377,7 @@ def container_start_worker(client, env, key='worker', rmq='docker', **kwargs):
                 get_path(kwargs['logs']) + ':/opt/logs:rw',
                 '%s:%s' % (worker_tmp_root, worker_tmp_root),
                 get_path(kwargs['assetstore']) + ':/opt/histomicstk/assetstore:rw',
+                get_path(kwargs['htk']) + ':/home/ubuntu/HistomicsTK:rw',
             ]
         }
         config['binds'].extend(docker_mounts())
