@@ -15,10 +15,10 @@ parser.add_argument('-f', '--folder', type=str,
                     default='',
                     help='Folder images are stored in for processing')
 parser.add_argument('-w', '--workergroup', type=str,
-                    default='5e310290e3c0d89a0744bf47',
+                    default='5f0dc554c9f8c18253ae949d',
                     help='ID for worker group')
 parser.add_argument('-a', '--admingroup', type=str,
-                    default='5e3102c0e3c0d89a0744bf50',
+                    default='5f0dc574c9f8c18253ae949e',
                     help='ID for admin group')
 args = parser.parse_args()
 

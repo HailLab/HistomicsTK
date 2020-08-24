@@ -27,23 +27,19 @@ class FolderFirstImageResource(FolderResource):
     @access.public
     @autoDescribeRoute(
         Description('Get the first image in the folder for this user.')
-        .modelParam('folderId', 'The (virtual) folder ID the image is located in',
+        .modelParam('id', 'The (virtual) folder ID the image is located in',
                     model='folder', destName='folder', paramType='query', level=AccessType.READ,
                     required=True)
         .errorResponse()
         .errorResponse('Image is empty or does not exist', code=404)
     )
     def getFirstImage(self, folder):
-        user = self.getCurrentUser()
+        user = ItemResource().getCurrentUser()
         groups = [str(g) for g in user.get('groups', [])]
         expert_group = '5e3102c0e3c0d89a0744bf50'
 
-        folderModel = Folder()
-        if currentFolder:
-            folder = currentFolder
-        else:
-            folder = folderModel.load(
-                currentImage['folderId'], user=user, level=AccessType.READ)
+        folderModel = FolderResource()
+        #folder = folderModel.load(folder, user=user, level=AccessType.READ)
 
         if folder.get('isVirtual'):
             children = folderModel.childItems(folder, includeVirtual=True)
