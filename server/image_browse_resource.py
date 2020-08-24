@@ -48,8 +48,8 @@ class ImageBrowseResource(ItemResource):
             index = allImages.index(currentImage)
         except ValueError:
             raise RestException('Id is not an image', 404)
-        if index >= len(allImages) - 1 and str(folder['_id']) == '5e471b311c7080564deb44fa':
-            nextImage = {u'size': 3016797, u'_id': u'https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8', u'description': u'', u'baseParentType': u'collection', u'baseParentId': u'5e4719631c7080564deb44e5', u'creatorId': u'5e2f35c7e7a8d01deb3964f3', u'folderId': u'5e471b311c7080564deb44fa', u'lowerName': u'survey.jpg', u'name': u'survey.JPG'}
+        if index >= len(allImages) - 1 and str(folder['_id']) == '5f0dc45cc9f8c18253ae949b':
+            nextImage = {u'size': 3016797, u'_id': u'https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8', u'description': u'', u'baseParentType': u'collection', u'baseParentId': u'5e4719631c7080564deb44e5', u'creatorId': u'5e2f35c7e7a8d01deb3964f3', u'folderId': u'5f0dc45cc9f8c18253ae949b', u'lowerName': u'survey.jpg', u'name': u'survey.JPG'}
         else:
             nextImage = allImages[(index + 1) % len(allImages)]
         return {

@@ -95,7 +95,7 @@ var ZoomWidget = Panel.extend({
         this._zoomSliderInput();
 
         const user = getCurrentUser();
-        const expert = user.attributes.groups.indexOf('5e3102c0e3c0d89a0744bf50') > 0;
+        const expert = user.attributes.groups.indexOf('5f0dc574c9f8c18253ae949e') > 0;
         console.log(this);
 
         if (!expert) {

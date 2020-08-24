@@ -110,7 +110,7 @@ def validateHistomicsTKQuarantineFolder(doc):
 
 # Defaults that have fixed values are added to the system defaults dictionary.
 SettingDefault.defaults.update({
-    PluginSettings.HISTOMICSTK_WEBROOT_PATH: 'histomicstk',
+    PluginSettings.HISTOMICSTK_WEBROOT_PATH: '',
     PluginSettings.HISTOMICSTK_BRAND_NAME: 'HistomicsTK',
     PluginSettings.HISTOMICSTK_BANNER_COLOR: '#f8f8f8',
     PluginSettings.HISTOMICSTK_BRAND_COLOR: '#777777',

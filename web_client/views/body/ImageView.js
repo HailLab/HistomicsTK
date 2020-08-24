@@ -28,9 +28,11 @@ import '../../stylesheets/body/image.styl';
 var ImageView = View.extend({
     events: {
         'keydown .h-image-body': '_onKeyDown',
+        'keyup .h-image-body': '_onKeyUp',
         'keydown .geojs-map': '_handleKeyDown',
         'click .h-control-panel-container .s-close-panel-group': '_closeAnalysis',
-        'mousemove .geojs-map': '_trackMousePosition'
+        'mousemove .geojs-map': '_trackMousePosition',
+        'click [href="https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8"]': '_alertBeforeFinishedAnnotating'
     },
     initialize(settings) {
         this.viewerWidget = null;
@@ -257,12 +259,14 @@ var ImageView = View.extend({
                 const anno = this.activeAnnotation.attributes.annotation.name;
                 // Seems to set even bedore navigating away if you move window to background 
                 var data = {};
-                if (('time-' + anno) in this.model.attributes.meta && this.model.attributes.meta['time-' + anno]) {
+                if (typeof this.model.attributes.meta !== 'undefined' && ('time-' + anno) in this.model.attributes.meta && this.model.attributes.meta['time-' + anno]) {
                     data["time-" + anno] = TimeMe.getTimeOnCurrentPageInSeconds() + parseFloat(this.model.attributes.meta['time-' + anno]);
                 } else {
                     data["time-" + anno] = TimeMe.getTimeOnCurrentPageInSeconds();
                 }
-                data['zoom-' + anno] = this.model.attributes.meta['zoom-' + anno];
+                if (typeof this.model.attributes.meta !== 'undefined') {
+                    data['zoom-' + anno] = this.model.attributes.meta['zoom-' + anno];
+                }
                 var item = $.ajax({
                     url: '/api/v1/item/' + this.model.attributes._id + '/metadata',
                     beforeSend: function(request) {
@@ -784,7 +788,16 @@ var ImageView = View.extend({
                 .attr('title', `Annotation total opacity ${(this._opacity * 100).toFixed()}%`);
             this.$('#h-annotation-opacity').val(this._opacity).trigger('change');
             events.trigger('h:annotationOpacity', this._opacity);
+            // this._changeGlobalOpacity(this._opacity);
             this._setAnnotationOpacity(this._opacity);
+        } else if (evt.key === 'Alt') {
+            $('.h-image-body #h-annotation-selector-container').fadeOut();
+        }
+    },
+
+    _onKeyUp(evt) {
+        if (evt.key === 'Alt') {
+            $('.h-image-body #h-annotation-selector-container').fadeIn();
         }
     },
 
@@ -793,7 +806,7 @@ var ImageView = View.extend({
         if ('activeAnnotation' in this && 'attributes' in this.activeAnnotation && this.activeAnnotation.attributes.annotation.name) {
             const anno = this.activeAnnotation.attributes.annotation.name;
             const zoom = parseFloat(this.viewer.zoom());
-            if ((('zoom-' + anno) in this.model.attributes.meta && this.model.attributes.meta['zoom-' + anno] && zoom > parseFloat(this.model.attributes.meta['zoom-' + anno])) || !(('zoom-' + anno) in this.model.attributes.meta)) {
+            if ((typeof this.model.attributes.meta !== 'undefined' && ('zoom-' + anno) in this.model.attributes.meta && this.model.attributes.meta['zoom-' + anno] && zoom > parseFloat(this.model.attributes.meta['zoom-' + anno])) || typeof this.model.attributes.meta !== 'undefined' && !(('zoom-' + anno) in this.model.attributes.meta)) {
                 this.model.attributes.meta['zoom-' + anno] = zoom;
             }
         }
@@ -1003,6 +1016,9 @@ var ImageView = View.extend({
             elementsCollection.remove(elements, { silent: true });
             elementsCollection.trigger('reset', elementsCollection);
         });
+    },
+    _alertBeforeFinishedAnnotating() {
+        confirm("You've completed the baseline entries. To make changes, select cancel and navigate back to the images you would like to review. To proceed, select Go to survey and complete the experience survey.");
     }
 });
 export default ImageView;

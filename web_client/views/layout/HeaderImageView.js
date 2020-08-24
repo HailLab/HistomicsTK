@@ -14,6 +14,11 @@ var HeaderImageView = View.extend({
         },
         'click .h-open-annotated-image': function (evt) {
             events.trigger('h:openAnnotatedImageUi');
+        },
+        'click [href="https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8"]': function (evt) {
+            if (!confirm("You've completed the baseline entries. To make changes, select 'Cancel' and navigate back to the images you would like to review. To proceed, select 'Ok' and complete the experience survey.")) {
+                evt.preventDefault();
+            }
         }
     },
 
@@ -37,35 +42,52 @@ var HeaderImageView = View.extend({
 
     render() {
         const analysis = router.getQuery('analysis') ? `&analysis=${router.getQuery('analysis')}` : '';
-        const folder = router.getQuery('folder') ? `&folder=${router.getQuery('folder')}` : '&folder=5e471b311c7080564deb44fa';
+        const folder = router.getQuery('folder') ? `&folder=${router.getQuery('folder')}` : '&folder=5f0dc45cc9f8c18253ae949b';
+        const folderId = router.getQuery('folder') || '5f0dc45cc9f8c18253ae949b';
         let nextImageLink = this._nextImage;
         if (this._nextImage && this._nextImage.indexOf('https://') < 0) {
             nextImageLink = this._nextImage ? `#?image=${this._nextImage}${folder}${analysis}` : null;
         }
         const previousImageLink = this._previousImage ? `#?image=${this._previousImage}${folder}${analysis}` : null;
-        console.log('headerImage');
-        console.log(folder);
-        console.log(nextImageLink);
-        this.$el.html(headerImageTemplate({
-            image: this.imageModel,
-            parentChain: this.parentChain,
-            nextImageLink: nextImageLink,
-            previousImageLink: previousImageLink
-        }));
+        console.log(this._firstImage);
+        console.log('Should have been first image!');
+        restRequest({
+            url: `item/${folderId}/first_image?folder=${folderId}`
+        }).done((first) => {
+            this._firstImage = first._id;
+            const firstImageLink = this._firstImage ? `#?image=${this._firstImage}${folder}` : '#?image=5f0f2da097cefa564329547b&folder=5f0dc45cc9f8c18253ae949b';
+            this.$el.html(headerImageTemplate({
+                image: this.imageModel,
+                parentChain: this.parentChain,
+                nextImageLink: nextImageLink,
+                previousImageLink: previousImageLink,
+                firstImageLink: firstImageLink
+            }));
+        })
         return this;
     },
 
     _setNextPreviousImage() {
         const model = this.imageModel;
         const folder = router.getQuery('folder') ? `?folderId=${router.getQuery('folder')}` : '';
+        const folderId = router.getQuery('folder') || '5f0dc45cc9f8c18253ae949b';
         if (!model) {
+            console.log('No model!');
             this._nextImage = null;
             this._previousImage = null;
+            this._firstImage = null;
             this.render();
             return;
         }
 
         $.when(
+            restRequest({
+                url: `item/${folderId}/first_image${folder}`
+            }).done((first) => {
+                this._firstImage = (first._id !== model.id) ? first._id : null;
+                console.log('FIRST!!!!11!!!');
+                console.log(first);
+            }),
             restRequest({
                 url: `item/${model.id}/previous_image${folder}`
             }).done((previous) => {

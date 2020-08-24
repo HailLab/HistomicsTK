@@ -11,9 +11,9 @@ parser.add_argument('-t', '--token', type=str, default=os.environ.get('GIRDER_TO
 parser.add_argument('-u', '--url', type=str, default='https://skin.app.vumc.org/api/v1/',
                     help='Url for histomicsTK server')
 parser.add_argument('-f', '--folder', type=str, default='', help='Folder images are stored in for processing')
-parser.add_argument('-w', '--workergroup', type=str, default='5e310290e3c0d89a0744bf47', help='ID for worker group')
-parser.add_argument('-a', '--admingroup', type=str, default='5e3102c0e3c0d89a0744bf50', help='ID for admin group')
-parser.add_argument('-b', '--baselinegroup', type=str, default='5e4adaf4e246d984ad191224', help='ID for baseline group')
+parser.add_argument('-w', '--workergroup', type=str, default='5f0dc554c9f8c18253ae949d', help='ID for worker group')
+parser.add_argument('-a', '--admingroup', type=str, default='5f0dc574c9f8c18253ae949e', help='ID for admin group')
+parser.add_argument('-b', '--baselinegroup', type=str, default='5f0dc532c9f8c18253ae949c', help='ID for baseline group')
 parser.add_argument('-o', '--operation', type=str, default='process',
                     choices=['process', 'export', 'status', 'process_baseline'], help='What to do with images')
 args = parser.parse_args()
