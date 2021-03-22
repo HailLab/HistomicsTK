@@ -49,6 +49,23 @@ var ImageView = View.extend({
 
         if (!this.model) {
             this.model = new ItemModel();
+            if ('modelId' in settings && !router.getQuery('image')) {
+                console.log('settings');
+                console.log(settings);
+                console.log(router.getQuery('image'));
+                if ('folderId' in settings) {
+                    router.setQuery('folder', settings.folderId);
+                }
+                this.model.set({ _id: settings.modelId }).fetch().then(() => {
+                    this.model.id = settings.modelId || this._openId;
+                    this._setImageInput();
+                    return null;
+                });
+                router.setQuery('image', settings.modelId);
+            }
+        } else {
+            console.log('no modelId or image tag exists');
+            this.model = new ItemModel();
         }
         this.listenTo(this.model, 'g:fetched', this.render);
         this.listenTo(events, 'h:analysis:rendered', this._setImageInput);
@@ -127,6 +144,8 @@ var ImageView = View.extend({
         TimeMe.initialize({ 
             currentPageName: this.model.id 
         });
+        console.log('model');
+        console.log(this.model);
         this.render();
     },
     render() {
