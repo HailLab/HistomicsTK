@@ -61,6 +61,9 @@ var ImageView = View.extend({
         this._increaseZoom2x = 1;
         if (!this.model) {
             this.model = new ItemModel();
+	    if ('debug' in settings){
+		console.log('imageView.js trigger from routes.js');
+	    }
             if ('modelId' in settings && !router.getQuery('image')) {
                 console.log('debug settings: ImageView.js');
                 console.log("ImageView.js setting: ", settings);
