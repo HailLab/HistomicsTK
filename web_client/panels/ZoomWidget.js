@@ -33,6 +33,19 @@ import { getCurrentUser } from 'girder/auth';
  *       val = log2(m)
  *         for magnification m
  */
+function whoIsMyDaddy() {
+    try {
+	throw new Error();
+    } catch (e) {
+	// matches this function, the caller and the parent
+	const allMatches = e.stack.match(/(\w+)@|at (\w+) \(/g);
+	// match parent function name
+	const parentMatches = allMatches[2].match(/(\w+)@|at (\w+) \(/);
+	// return only name
+	return parentMatches[1] || parentMatches[2];
+    }
+}
+
 var ZoomWidget = Panel.extend({
     events: _.extend(Panel.prototype.events, {
         'click .h-zoom-button': '_zoomButton',
@@ -53,7 +66,9 @@ var ZoomWidget = Panel.extend({
         var value = 0;
         var min, max, step = 0.025;
         var buttons;
-
+	let caller = whoIsMyDaddy();
+	console.log('ZoomWidget.js, render() ---> ', caller);
+	
         if (this.viewer) {
             // get current magnification from the renderer
             value = this.zoomToMagnification(this.renderer.zoom());
@@ -96,13 +111,13 @@ var ZoomWidget = Panel.extend({
 
         const user = getCurrentUser();
         const expert = user.attributes.groups.indexOf('5f0dc574c9f8c18253ae949e') > 0;
-        console.log(this);
+        console.log("TEST TEST location --->  ", this);
 
         if (!expert) {
             //$('.h-download-button-container').css('display', 'none');
             $('.h-download-button-container').css('display', 'none');
         }
-
+	console.log('ZoomWidget.js <-- return');
         return this;
     },
 

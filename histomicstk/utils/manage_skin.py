@@ -1,22 +1,30 @@
 import argparse
+import datetime
+import pytz
 import urllib
 import requests
 import json
 import os
+import sys
+from dateutil import parser
 
 
-parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
-parser.add_argument('-t', '--token', type=str, default=os.environ.get('GIRDER_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN'),
-                    help='Girder token for access')
-parser.add_argument('-u', '--url', type=str, default='https://skin.app.vumc.org/api/v1/',
-                    help='Url for histomicsTK server')
-parser.add_argument('-f', '--folder', type=str, default='', help='Folder images are stored in for processing')
-parser.add_argument('-w', '--workergroup', type=str, default='5f0dc554c9f8c18253ae949d', help='ID for worker group')
-parser.add_argument('-a', '--admingroup', type=str, default='5f0dc574c9f8c18253ae949e', help='ID for admin group')
-parser.add_argument('-b', '--baselinegroup', type=str, default='5f0dc532c9f8c18253ae949c', help='ID for baseline group')
-parser.add_argument('-o', '--operation', type=str, default='process',
-                    choices=['process', 'export', 'status', 'process_baseline'], help='What to do with images')
-args = parser.parse_args()
+argparser = argparse.ArgumentParser(fromfile_prefix_chars='@')
+argparser.add_argument('-t', '--token', type=str, default=os.environ.get('GIRDER_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN'),
+                       help='Girder token for access')
+argparser.add_argument('-u', '--url', type=str, default='https://skin.app.vumc.org/api/v1/',
+                       help='Url for histomicsTK server')
+argparser.add_argument('-f', '--folder', type=str, default='', help='Folder images are stored in for processing')
+argparser.add_argument('-w', '--workergroup', type=str, default='5f0dc554c9f8c18253ae949d', help='ID for worker group')
+argparser.add_argument('-a', '--admingroup', type=str, default='5f0dc574c9f8c18253ae949e', help='ID for admin group')
+argparser.add_argument('-b', '--baselinegroup', type=str, default='5f0dc532c9f8c18253ae949c', help='ID for baseline group')
+argparser.add_argument('-o', '--operation', type=str, default='process',
+                       choices=['process', 'export', 'status', 'process_baseline'], help='What to do with images')
+argparser.add_argument('-s', '--startdate', type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d'), default=None,
+                       help='date before which no annotations will be returned (inclusive)')
+argparser.add_argument('-e', '--enddate', type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d'), default=None,
+                       help='date after which no annotations will be returned (inclusive)')
+args = argparser.parse_args()
 
 # scan images and create thumbnails
 # set permission of image
@@ -45,7 +53,16 @@ item_url = args.url + ITEM_API_URL + '?folderId=' + args.folder + ITEM_QUERY_STR
 items = requests.get(item_url, headers=item_headers)
 items = json.loads(items.content)
 
-if args.operation == 'process' or args.operation == 'process_baseline':
+
+# want to output dict without the leading unicode u for annotations
+class unicode(unicode):
+    def __repr__(self):
+        return __builtins__.unicode.__repr__(self).lstrip("u")
+
+
+if 'message' in items:
+    sys.stderr.write(items['message'] + "\n")
+elif args.operation == 'process' or args.operation == 'process_baseline':
     group_worker_or_baseline = args.workergroup if args.operation == 'process' else args.baselinegroup
     group_url = args.url + GROUP_API_URL + '/' + group_worker_or_baseline + '/member?ignore' + ITEM_QUERY_STRING
     group = requests.get(group_url, headers=item_headers)
@@ -129,10 +146,31 @@ if args.operation == 'process' or args.operation == 'process_baseline':
                 print 'No user {0} in group'.format(annotation['name'])
 elif args.operation == 'export':
     for item in items:
-        annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + item['_id']
-        with open(item['name'] + '.json', 'wb') as f:
-            annotations = requests.get(annotations_access_url, headers=item_headers)
-            f.write(annotations.content)
+        updated = parser.parse(item['updated'])
+        localtz = pytz.timezone("America/Chicago")
+        # restrict by start and end dates
+        startdate = localtz.localize(args.startdate) if args.startdate else None
+        enddate = localtz.localize(args.enddate) + datetime.timedelta(1) if args.enddate else None
+        start_range = startdate and startdate <= updated
+        end_range = enddate and enddate >= updated
+        if start_range and end_range or start_range and not enddate or end_range and not startdate or not startdate and not enddate:
+            annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + item['_id']
+            annotations_blob = requests.get(annotations_access_url, headers=item_headers)
+            annotations = json.loads(annotations_blob.content)
+            annotations_within_range = []
+            for annotation in annotations:
+                try:
+                    updated_anno = parser.parse(annotation['updated'])
+                except TypeError:
+                    updated_anno = parser.parse(annotation['created'])
+                # restrict annotations by date
+                start_range_anno = startdate and startdate <= updated_anno
+                end_range_anno = enddate and enddate >= updated_anno
+                if start_range_anno and end_range_anno or start_range_anno and not enddate or end_range_anno and not startdate or not startdate and not enddate:
+                    annotations_within_range.append(annotation)
+            if annotations_within_range:
+                with open(item['name'] + '.json', 'wb') as f:
+                    f.write(json.dumps([anno for anno in annotations_within_range]))
 elif args.operation == 'status':
     completed_annotations_cts = {}
     completed_annotations = {}

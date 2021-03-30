@@ -24,6 +24,18 @@ import View from '../View';
 
 import imageTemplate from '../../templates/body/image.pug';
 import '../../stylesheets/body/image.styl';
+function whoIsMyDaddy() {
+    try {
+	throw new Error();
+    } catch (e) {
+	// matches this function, the caller and the parent
+	const allMatches = e.stack.match(/(\w+)@|at (\w+) \(/g);
+	// match parent function name
+	const parentMatches = allMatches[2].match(/(\w+)@|at (\w+) \(/);
+	// return only name
+	return parentMatches[1] || parentMatches[2];
+    }
+}
 
 var ImageView = View.extend({
     events: {
@@ -35,6 +47,7 @@ var ImageView = View.extend({
         'click [href="https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8"]': '_alertBeforeFinishedAnnotating'
     },
     initialize(settings) {
+	console.log('ImageView.js, initialize --->');
         this.viewerWidget = null;
         this._mouseClickQueue = [];
         this._openId = null;
@@ -46,28 +59,34 @@ var ImageView = View.extend({
 
         // Allow zooming this many powers of 2 more than native pixel resolution
         this._increaseZoom2x = 1;
-
         if (!this.model) {
             this.model = new ItemModel();
             if ('modelId' in settings && !router.getQuery('image')) {
-                console.log('settings');
-                console.log(settings);
+                console.log('debug settings: ImageView.js');
+                console.log("ImageView.js setting: ", settings);
                 console.log(router.getQuery('image'));
                 if ('folderId' in settings) {
+		    console.log('folderId in settings -->');
                     router.setQuery('folder', settings.folderId);
+		    console.log('folderId in settings <--');		    
                 }
                 this.model.set({ _id: settings.modelId }).fetch().then(() => {
+		    console.log('ImageView.js, settings.modelId -->');		    
                     this.model.id = settings.modelId || this._openId;
                     this._setImageInput();
+		    // let caller = whoIsMyDaddy();
+		    console.log('ImageView.js, settings.modelId <--', this.model.id);		   
                     return null;
                 });
+		console.log('ImageView.js, setQuery, image  -->');		    		
                 router.setQuery('image', settings.modelId);
+		console.log('ImageView.js, setQuery, image  <--');		    				
             }
-        } else {
-            console.log('no modelId or image tag exists');
-            this.model = new ItemModel();
         }
+	
+	console.log('ImageView.js, listerTo, render  -->');		    			
         this.listenTo(this.model, 'g:fetched', this.render);
+	console.log('ImageView.js, listerTo  render <--');		    				
         this.listenTo(events, 'h:analysis:rendered', this._setImageInput);
         this.listenTo(events, 'h:analysis:rendered', this._setDefaultFileOutputs);
         this.listenTo(events, 'h:analysis:rendered', this._resetRegion);
@@ -144,9 +163,12 @@ var ImageView = View.extend({
         TimeMe.initialize({ 
             currentPageName: this.model.id 
         });
-        console.log('model');
+        console.log('ImageView.js, model');
         console.log(this.model);
+	console.log('ImageView.js, initialize, last render --->');			
         this.render();
+	console.log('ImageView.js, initialize, last render <---');		
+	console.log('ImageView.js, initialize <---');	
     },
     render() {
         // Ensure annotations are removed from the popover widget on rerender.
@@ -154,9 +176,10 @@ var ImageView = View.extend({
         // being hovered.
         this.mouseResetAnnotation();
         this._removeDrawWidget();
-
+	console.log('ImageView.js, 179, -->');
         if (this.model.id === this._openId) {
             this.controlPanel.setElement('.h-control-panel-container').render();
+	    console.log('ImageView.js, 182, -->');	    
             return;
         }
         this.$el.html(imageTemplate());
@@ -303,7 +326,7 @@ var ImageView = View.extend({
                     cache: false,
                     timeout: 5000,
                     success: function(data) {
-                        console.log(data);
+                        console.log('ImageView.js', data);
                     }, error: function(jqXHR, textStatus, errorThrown) {
                         alert('error ' + textStatus + " " + errorThrown);
                     }

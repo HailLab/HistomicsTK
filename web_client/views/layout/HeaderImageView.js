@@ -41,6 +41,7 @@ var HeaderImageView = View.extend({
     },
 
     render() {
+	console.log('HeaderImageView render -->');			
         const analysis = router.getQuery('analysis') ? `&analysis=${router.getQuery('analysis')}` : '';
         const folder = router.getQuery('folder') ? `&folder=${router.getQuery('folder')}` : '&folder=5f0dc45cc9f8c18253ae949b';
         const folderId = router.getQuery('folder') || '5f0dc45cc9f8c18253ae949b';
@@ -50,7 +51,7 @@ var HeaderImageView = View.extend({
         }
         const previousImageLink = this._previousImage ? `#?image=${this._previousImage}${folder}${analysis}` : null;
         console.log(this._firstImage);
-        console.log('Should have been first image!');
+        console.log('HeaderImageView.js, debug: Should have been first image!');
         restRequest({
             url: `item/${folderId}/first_image?folder=${folderId}`
         }).done((first) => {
@@ -64,6 +65,7 @@ var HeaderImageView = View.extend({
                 firstImageLink: firstImageLink
             }));
         })
+	console.log('HeaderImageView render <--');				
         return this;
     },
 
@@ -72,7 +74,7 @@ var HeaderImageView = View.extend({
         const folder = router.getQuery('folder') ? `?folderId=${router.getQuery('folder')}` : '';
         const folderId = router.getQuery('folder') || '5f0dc45cc9f8c18253ae949b';
         if (!model) {
-            console.log('No model!');
+            console.log('HeaderImageView.js: No model!');
             this._nextImage = null;
             this._previousImage = null;
             this._firstImage = null;
@@ -85,7 +87,7 @@ var HeaderImageView = View.extend({
                 url: `item/${folderId}/first_image${folder}`
             }).done((first) => {
                 this._firstImage = (first._id !== model.id) ? first._id : null;
-                console.log('FIRST!!!!11!!!');
+                console.log('HeaderImageView.js, Debug: FIRST!!!!11!!!');
                 console.log(first);
             }),
             restRequest({
