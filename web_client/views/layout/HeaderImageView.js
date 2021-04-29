@@ -56,7 +56,8 @@ var HeaderImageView = View.extend({
             url: `item/${folderId}/first_image?folder=${folderId}`
         }).done((first) => {
             this._firstImage = first._id;
-            const firstImageLink = this._firstImage ? `#?image=${this._firstImage}${folder}` : '#?image=5f0f2da097cefa564329547b&folder=5f0dc45cc9f8c18253ae949b';
+            this._firstFolder = typeof first.folderId !== 'undefined' ? '&folder=' + first.folderId : folder;
+            const firstImageLink = this._firstImage ? `#?image=${this._firstImage}${this._firstFolder}` : '#?image=5f0f2da097cefa564329547b&folder=5f0dc45cc9f8c18253ae949b';
             this.$el.html(headerImageTemplate({
                 image: this.imageModel,
                 parentChain: this.parentChain,
@@ -72,7 +73,12 @@ var HeaderImageView = View.extend({
     _setNextPreviousImage() {
         const model = this.imageModel;
         const folder = router.getQuery('folder') ? `?folderId=${router.getQuery('folder')}` : '';
+        console.log('folder');
+        console.log(folder);
+        console.log(router.getQuery('folder'));
         const folderId = router.getQuery('folder') || '5f0dc45cc9f8c18253ae949b';
+        console.log('folderId');
+        console.log(folderId);
         if (!model) {
             console.log('HeaderImageView.js: No model!');
             this._nextImage = null;
@@ -87,7 +93,6 @@ var HeaderImageView = View.extend({
                 url: `item/${folderId}/first_image${folder}`
             }).done((first) => {
                 this._firstImage = (first._id !== model.id) ? first._id : null;
-                console.log('HeaderImageView.js, Debug: FIRST!!!!11!!!');
                 console.log(first);
             }),
             restRequest({

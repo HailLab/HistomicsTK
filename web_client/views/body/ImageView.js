@@ -24,6 +24,8 @@ import View from '../View';
 
 import imageTemplate from '../../templates/body/image.pug';
 import '../../stylesheets/body/image.styl';
+
+
 function whoIsMyDaddy() {
     try {
 	throw new Error();
@@ -51,6 +53,7 @@ var ImageView = View.extend({
         this.viewerWidget = null;
         this._mouseClickQueue = [];
         this._openId = null;
+        this._folderId = settings.folderId;
         this._displayedRegion = null;
         this._currentMousePosition = null;
         this._selectElementsByRegionCanceled = false;
@@ -59,32 +62,29 @@ var ImageView = View.extend({
 
         // Allow zooming this many powers of 2 more than native pixel resolution
         this._increaseZoom2x = 1;
+        console.log('MODEL, OPENID, IMAGEQS, SETTINGS');
+        console.log(this.model);
+        console.log(this._openId);
+        console.log(router.getQuery('image'));
+        console.log(settings);
         if (!this.model) {
             this.model = new ItemModel();
-	    if ('debug' in settings){
-		console.log('imageView.js trigger from routes.js');
-	    }
-            if ('modelId' in settings && !router.getQuery('image')) {
-                console.log('debug settings: ImageView.js');
-                console.log("ImageView.js setting: ", settings);
-                console.log(router.getQuery('image'));
-                if ('folderId' in settings) {
-		    console.log('folderId in settings -->');
-                    router.setQuery('folder', settings.folderId);
-		    console.log('folderId in settings <--');		    
-                }
-                this.model.set({ _id: settings.modelId }).fetch().then(() => {
-		    console.log('ImageView.js, settings.modelId -->');		    
-                    this.model.id = settings.modelId || this._openId;
-                    this._setImageInput();
-		    // let caller = whoIsMyDaddy();
-		    console.log('ImageView.js, settings.modelId <--', this.model.id);		   
-                    return null;
-                });
-		console.log('ImageView.js, setQuery, image  -->');		    		
-                router.setQuery('image', settings.modelId);
-		console.log('ImageView.js, setQuery, image  <--');		    				
+            console.log('settingss');
+            console.log(settings);
+            if (router.getQuery('image')) {
+                console.log('SET FROM QUERY STRING');
+                this.openImage(router.getQuery('image'));
             }
+        }
+        if (!this._openId) {
+            if (settings.modelId && !router.getQuery('image')) {
+                this.openImage(settings.modelId);
+                console.log('SET FROM SETTINGS');
+                // router.navigate('?image=' + settings.modelId, {trigger: true});
+            }
+        }
+        if (!router.getQuery('image') && settings.modelId) {
+            router.setQuery('image', settings.modelId);
         }
 	
 	console.log('ImageView.js, listerTo, render  -->');		    			
@@ -94,7 +94,7 @@ var ImageView = View.extend({
         this.listenTo(events, 'h:analysis:rendered', this._setDefaultFileOutputs);
         this.listenTo(events, 'h:analysis:rendered', this._resetRegion);
         this.listenTo(this.selectedElements, 'add remove reset', this._redrawSelection);
-        events.trigger('h:imageOpened', null);
+        events.trigger('h:imageOpened', settings.modelId ? this.model : null);
         this.listenTo(events, 'query:image', this.openImage);
         this.annotations = new AnnotationCollection();
 
@@ -148,6 +148,7 @@ var ImageView = View.extend({
 
         this.listenTo(events, 's:widgetChanged:region', this.widgetRegion);
         this.listenTo(events, 'g:login g:logout.success g:logout.error', () => {
+            console.log('Log in hit');
             this._openId = null;
             this.model.set({ _id: null });
         });
@@ -180,6 +181,11 @@ var ImageView = View.extend({
         this.mouseResetAnnotation();
         this._removeDrawWidget();
 	console.log('ImageView.js, 179, -->');
+        console.log('modelIds');
+        console.log(this.model.id);
+        console.log(this._openId);
+        console.log('modelid' + this.model.id);
+        console.log('openId' + this._openId);
         if (this.model.id === this._openId) {
             this.controlPanel.setElement('.h-control-panel-container').render();
 	    console.log('ImageView.js, 182, -->');	    
