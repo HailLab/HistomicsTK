@@ -3,33 +3,26 @@ import ImageView from './views/body/ImageView';
 
 import Router from './router';
 
+import { getCurrentUser } from 'girder/auth';
 import { restRequest } from 'girder/rest';
 
 function bindRoutes() {
     Router.route('', 'index', function () {
-        let firstImage = '5f0f2da097cefa564329547b';
+        const user = getCurrentUser();
+        const cgvhdGroupId = '5f0dc554c9f8c18253ae949d';
+        let firstImage = '5f0e188697cefa5643295388';
         let firstFolder = '5f0dc45cc9f8c18253ae949b';
-        console.log('routes.js, bindRoutes --> ');
+        if (user.attributes.groups.indexOf(cgvhdGroupId)) {
+            firstImage = '5f0e192a97cefa5643295397';
+            firstFolder = '5f0dc449c9f8c18253ae949a';
+        }
         restRequest({
-            url: `item/5f0dc45cc9f8c18253ae949b/first_image?folder=5f0dc45cc9f8c18253ae949b`
+            url: `item/${firstFolder}/first_image?folder=${firstFolder}`
         }).done(function (first) {
-            console.log('routes.js, bindRoutes --> done , first._id ', first._id, (typeof first));
-            console.log('routes.js, bindRoutes <-- done, firstImage: ', firstImage);
             firstImage = typeof first !== 'undefined' ? first._id : firstImage;
             firstFolder = typeof first !== 'undefined' && first.folderId ? first.folderId : firstFolder;
-            console.log('routes.js, bindRoutes <-- done, firstImage: ', firstImage);
-            //events.trigger('g:navigateTo', ImageView, {'modelId': firstImage});
             events.trigger('g:navigateTo', ImageView, {'modelId': firstImage, 'folderId': firstFolder});
-            //events.trigger('g:navigateTo', ImageView, {'modelId': '123456'});     
-            console.log('routes.js, bindRoutes <-- done ');
         });
-        /*
-        var first = restRequest({
-            url: 'item/5f0dc45cc9f8c18253ae949b/first_image?folder=5f0dc45cc9f8c18253ae949b'
-        });
-        firstImage = typeof first !== 'undefined' ? first._id : firstImage;
-        events.trigger('g:navigateTo', ImageView, {'modelId': firstImage});
-        */
     });
     return Router;
 }

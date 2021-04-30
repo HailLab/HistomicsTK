@@ -1,3 +1,4 @@
+import { getCurrentUser } from 'girder/auth';
 import { restRequest } from 'girder/rest';
 
 import events from '../../events';
@@ -41,23 +42,26 @@ var HeaderImageView = View.extend({
     },
 
     render() {
-	console.log('HeaderImageView render -->');			
+        const user = getCurrentUser();
+        const cgvhdGroupId = '5f0dc554c9f8c18253ae949d';
+        let firstFolder = '5f0dc45cc9f8c18253ae949b';
+        if (user.attributes.groups.indexOf(cgvhdGroupId)) {
+            firstFolder = '5f0dc449c9f8c18253ae949a';
+        }
         const analysis = router.getQuery('analysis') ? `&analysis=${router.getQuery('analysis')}` : '';
-        const folder = router.getQuery('folder') ? `&folder=${router.getQuery('folder')}` : '&folder=5f0dc45cc9f8c18253ae949b';
-        const folderId = router.getQuery('folder') || '5f0dc45cc9f8c18253ae949b';
+        const folder = router.getQuery('folder') ? `&folder=${router.getQuery('folder')}` : `&folder=${firstFolder}`;
+        const folderId = router.getQuery('folder') || firstFolder;
         let nextImageLink = this._nextImage;
         if (this._nextImage && this._nextImage.indexOf('https://') < 0) {
             nextImageLink = this._nextImage ? `#?image=${this._nextImage}${folder}${analysis}` : null;
         }
         const previousImageLink = this._previousImage ? `#?image=${this._previousImage}${folder}${analysis}` : null;
-        console.log(this._firstImage);
-        console.log('HeaderImageView.js, debug: Should have been first image!');
         restRequest({
             url: `item/${folderId}/first_image?folder=${folderId}`
         }).done((first) => {
             this._firstImage = first._id;
             this._firstFolder = typeof first.folderId !== 'undefined' ? '&folder=' + first.folderId : folder;
-            const firstImageLink = this._firstImage ? `#?image=${this._firstImage}${this._firstFolder}` : '#?image=5f0f2da097cefa564329547b&folder=5f0dc45cc9f8c18253ae949b';
+            const firstImageLink = this._firstImage ? `#?image=${this._firstImage}${this._firstFolder}` : `#?image=${firstImage}&folder=$(firstFolder)`;
             this.$el.html(headerImageTemplate({
                 image: this.imageModel,
                 parentChain: this.parentChain,
@@ -66,21 +70,14 @@ var HeaderImageView = View.extend({
                 firstImageLink: firstImageLink
             }));
         })
-	console.log('HeaderImageView render <--');				
         return this;
     },
 
     _setNextPreviousImage() {
         const model = this.imageModel;
         const folder = router.getQuery('folder') ? `?folderId=${router.getQuery('folder')}` : '';
-        console.log('folder');
-        console.log(folder);
-        console.log(router.getQuery('folder'));
         const folderId = router.getQuery('folder') || '5f0dc45cc9f8c18253ae949b';
-        console.log('folderId');
-        console.log(folderId);
         if (!model) {
-            console.log('HeaderImageView.js: No model!');
             this._nextImage = null;
             this._previousImage = null;
             this._firstImage = null;
@@ -93,7 +90,6 @@ var HeaderImageView = View.extend({
                 url: `item/${folderId}/first_image${folder}`
             }).done((first) => {
                 this._firstImage = (first._id !== model.id) ? first._id : null;
-                console.log(first);
             }),
             restRequest({
                 url: `item/${model.id}/previous_image${folder}`

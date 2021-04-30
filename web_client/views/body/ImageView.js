@@ -49,7 +49,6 @@ var ImageView = View.extend({
         'click [href="https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8"]': '_alertBeforeFinishedAnnotating'
     },
     initialize(settings) {
-	console.log('ImageView.js, initialize --->');
         this.viewerWidget = null;
         this._mouseClickQueue = [];
         this._openId = null;
@@ -62,24 +61,15 @@ var ImageView = View.extend({
 
         // Allow zooming this many powers of 2 more than native pixel resolution
         this._increaseZoom2x = 1;
-        console.log('MODEL, OPENID, IMAGEQS, SETTINGS');
-        console.log(this.model);
-        console.log(this._openId);
-        console.log(router.getQuery('image'));
-        console.log(settings);
         if (!this.model) {
             this.model = new ItemModel();
-            console.log('settingss');
-            console.log(settings);
             if (router.getQuery('image')) {
-                console.log('SET FROM QUERY STRING');
                 this.openImage(router.getQuery('image'));
             }
         }
         if (!this._openId) {
             if (settings.modelId && !router.getQuery('image')) {
                 this.openImage(settings.modelId);
-                console.log('SET FROM SETTINGS');
                 // router.navigate('?image=' + settings.modelId, {trigger: true});
             }
         }
@@ -87,9 +77,7 @@ var ImageView = View.extend({
             router.setQuery('image', settings.modelId);
         }
 	
-	console.log('ImageView.js, listerTo, render  -->');		    			
         this.listenTo(this.model, 'g:fetched', this.render);
-	console.log('ImageView.js, listerTo  render <--');		    				
         this.listenTo(events, 'h:analysis:rendered', this._setImageInput);
         this.listenTo(events, 'h:analysis:rendered', this._setDefaultFileOutputs);
         this.listenTo(events, 'h:analysis:rendered', this._resetRegion);
@@ -148,7 +136,6 @@ var ImageView = View.extend({
 
         this.listenTo(events, 's:widgetChanged:region', this.widgetRegion);
         this.listenTo(events, 'g:login g:logout.success g:logout.error', () => {
-            console.log('Log in hit');
             this._openId = null;
             this.model.set({ _id: null });
         });
@@ -167,12 +154,7 @@ var ImageView = View.extend({
         TimeMe.initialize({ 
             currentPageName: this.model.id 
         });
-        console.log('ImageView.js, model');
-        console.log(this.model);
-	console.log('ImageView.js, initialize, last render --->');			
         this.render();
-	console.log('ImageView.js, initialize, last render <---');		
-	console.log('ImageView.js, initialize <---');	
     },
     render() {
         // Ensure annotations are removed from the popover widget on rerender.
@@ -180,15 +162,8 @@ var ImageView = View.extend({
         // being hovered.
         this.mouseResetAnnotation();
         this._removeDrawWidget();
-	console.log('ImageView.js, 179, -->');
-        console.log('modelIds');
-        console.log(this.model.id);
-        console.log(this._openId);
-        console.log('modelid' + this.model.id);
-        console.log('openId' + this._openId);
         if (this.model.id === this._openId) {
             this.controlPanel.setElement('.h-control-panel-container').render();
-	    console.log('ImageView.js, 182, -->');	    
             return;
         }
         this.$el.html(imageTemplate());
@@ -790,10 +765,6 @@ var ImageView = View.extend({
         this.activeAnnotation = model;
         this._removeDrawWidget();
         if (model) {
-            console.log('anno edit anno: ');
-            console.log(this);
-            console.log('model edit anno: ');
-            console.log(model);
             this.drawWidget = new DrawWidget({
                 parentView: this,
                 image: this.model,
@@ -853,7 +824,6 @@ var ImageView = View.extend({
     },
 
     _trackMousePosition(evt) {
-        console.log(this);
         if ('activeAnnotation' in this && 'attributes' in this.activeAnnotation && this.activeAnnotation.attributes.annotation.name) {
             const anno = this.activeAnnotation.attributes.annotation.name;
             const zoom = parseFloat(this.viewer.zoom());
