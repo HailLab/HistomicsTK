@@ -45,7 +45,7 @@ var HeaderImageView = View.extend({
         const user = getCurrentUser();
         const cgvhdGroupId = '5f0dc554c9f8c18253ae949d';
         let firstFolder = '5f0dc45cc9f8c18253ae949b';
-        if (user.attributes.groups.indexOf(cgvhdGroupId)) {
+        if (user.attributes.groups.indexOf(cgvhdGroupId) >= 0) {
             firstFolder = '5f0dc449c9f8c18253ae949a';
         }
         const analysis = router.getQuery('analysis') ? `&analysis=${router.getQuery('analysis')}` : '';
