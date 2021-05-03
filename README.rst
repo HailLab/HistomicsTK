@@ -58,7 +58,9 @@ HistomicsTK can be used in two ways:
   *To install HistomicsTK using PyPI*::
   
   $ python -m pip install histomicstk
-  
+
+Installation
+############
   *To install HistomicsTK from source*::
   
   $ git clone https://github.com/DigitalSlideArchive/HistomicsTK/
@@ -66,6 +68,8 @@ HistomicsTK can be used in two ways:
   $ python -m pip install setuptools-scm Cython>=1.25.2 scikit-build>=0.8.1 cmake>=0.6.0 numpy>=1.12.1
   $ python -m pip install -e .
 
+Notes
+#####
   HistomicsTK uses the `large_image`_ library to read and various microscopy
   image formats.  Depending on your exact system, installing the necessary 
   libraries to support these formats can be complex.  There are some
@@ -101,6 +105,70 @@ HistomicsTK can be used in two ways:
   access to image analysis pipelines developed as `slicer execution model`_
   CLIs and containerized using Docker.
 
+Server admin
+############
+HistomicsTK is hosted on an AWS instance. Backup images are being created of it.
+
+Skin maintenance
+################
+To login:
+*********
+1. Navigate to https://skin.app.vumc.org.
+2. Select Login in the upper-right-hand corner with an administrative account.
+
+To add a new user:
+******************
+1. Select Users in the left navigation or navigate to https://skin.app.vumc.org/#users.
+2. Select "Create User" in the top navigation.
+3. Use a login name derived from the first part of the user's email address (before the @ sign).
+4. Use the password MySkinCellsDivideIn1Hour
+
+To add a user to an image group:
+********************************
+1. Select Groups from the left navigation.
+2. Select group you would like to add the user to, (i.e. Baseline or GVHD).
+3. Type the user's name into the search field of the Member table.
+4. Click the user from the autocomplete.
+5. Select "Add as member" yellow button.
+6. Repeat for other groups you would like to add.
+7. Wait an hour for the server to run scripts which will create the annotation layers for all images.
+
+To export all annotations from baseline:
+****************************************
+.. code-block:: bash
+
+    ssh -i "~/.ssh/skin.app.vumc.org.pem" ubuntu@ec2-3-227-207-182.compute-1.amazonaws.com  # This assumes you have a bash-like shell environment. PuTTY should work fine in Windows though.
+    screen -dr skin  # I recommend you work in a screen in case of disconnect. You’ll need to execute `screen -S skin` to create the screen on your first connection or after any reboots.
+    python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --help  # if you want to see a list of all available arguments
+    python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --operation export --token a******************************Y --folder 5f0dc45cc9f8c18253ae949b > /tmp/skin-annotations-all-$(date +'%Y-%m-%d').json  # export all baseline demarcations. Update folder to 5f0dc449c9f8c18253ae949a if you want to export RCT instead.
+    screen -d htk  # detach from screen
+    exit
+    scp /tmp/skin-annotations-all-$(date +'%Y-%m-%d').json .  # Downloads annotations onto your local machine. This is assuming you have a bash-like shell environment on your native system. Winscp is a fine alternative on Windows
+
+To export annotations by date from RCT folder:
+**********************************************
+.. code-block:: bash
+
+    ssh -i "~/.ssh/skin.app.vumc.org.pem" ubuntu@ec2-3-227-207-182.compute-1.amazonaws.com  # This assumes you have a bash-like shell environment. PuTTY should work fine in Windows though.
+    screen -dr skin  # I recommend you work in a screen in case of disconnect. You’ll need to execute `screen -S skin` to create the screen on your first connection or after any reboots.
+    python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --help  # if you want to see a list of all available arguments
+    START_DATE=2021-01-01; END_DATE=2021-01-01; python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --operation export --token a******************************Y --folder 5f0dc449c9f8c18253ae949a --startdate $START_DATE --enddate $END_DATE > /tmp/skin-annotations-${START_DATE}--${END_DATE}.json  # export baseline demarcations on a particular date. Remove start or end to set only an upper or lower bound. Set a range to export a range of dates (inclusive). Update folder to 5f0dc45cc9f8c18253ae949b if you want to export baseline instead.
+    screen -d htk  # detach from screen
+    exit
+    scp /tmp/skin-annotations-all-2021-01-01--2021-01-01.json .  # Downloads annotations onto your local machine. This is assuming you have a bash-like shell environment on your native system. Winscp is a fine alternative on Windows. Make sure to update dates in file name.
+
+To create layers for new workers:
+*********************************
+.. code-block:: bash
+
+    ssh -i "~/.ssh/skin.app.vumc.org.pem" ubuntu@ec2-3-227-207-182.compute-1.amazonaws.com  # This assumes you have a bash-like shell environment. PuTTY should work fine in Windows though.
+    screen -dr skin  # I recommend you work in a screen in case of disconnect. You’ll need to execute `screen -S skin` to create the screen on your first connection or after any reboots.
+    python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --help  # if you want to see a list of all available arguments
+    python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --operation process_baseline --token a******************************Y --folder 5f0dc45cc9f8c18253ae949b
+    python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --operation process --token a******************************Y --folder 5f0dc449c9f8c18253ae949a
+
+Erata
+#####
 Please refer to https://digitalslidearchive.github.io/HistomicsTK/ for more information.
 
 For questions, comments, or to get in touch with the maintainers, head to our
