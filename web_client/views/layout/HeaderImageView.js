@@ -61,7 +61,10 @@ var HeaderImageView = View.extend({
         }).done((first) => {
             this._firstImage = first._id;
             this._firstFolder = typeof first.folderId !== 'undefined' ? '&folder=' + first.folderId : folder;
-            const firstImageLink = this._firstImage ? `#?image=${this._firstImage}${this._firstFolder}` : `#?image=${firstImage}&folder=$(firstFolder)`;
+            var firstImageLink = null;
+            if (router.getQuery('image') != this._firstImage) {
+                firstImageLink = this._firstImage ? `#?image=${this._firstImage}${this._firstFolder}` : `#?image=${firstImage}&folder=$(firstFolder)`;
+            }
             this.$el.html(headerImageTemplate({
                 image: this.imageModel,
                 parentChain: this.parentChain,

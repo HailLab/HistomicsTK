@@ -164,6 +164,12 @@ var AnnotationSelector = Panel.extend({
         const v = this;
         var reset;
         return onDomIsRendered('.h-annotation-name[title="' + this._currentUser.attributes.login + '"]').then(function(annotation){
+            // Open all annotation groups
+            $('.h-annotation-selector .h-group-collapsed').each(
+                function(e) {
+                    $(this).find('.h-annotation-group-name').click();
+                }
+            );
             var userAnnotation = annotation.parents('.h-annotation').data('id');
             if (userAnnotation) {
                 userAnnotation = v.collection.get(userAnnotation);
@@ -174,8 +180,8 @@ var AnnotationSelector = Panel.extend({
                     userAnnotation.set('highlight', true);
                     userAnnotation.set('displayed', true);
                     v.editAnnotation(userAnnotation);
-                    if (!expert) {
-                        $('.h-annotation-selector').css('display', 'none');
+                    if (expert) {
+                        $('.h-annotation-selector').removeClass('hidden');
                     }
                     annotation.reset = false;
                 }
