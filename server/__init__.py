@@ -27,7 +27,7 @@ from .handlers import process_annotations
 from .constants import PluginSettings
 from .image_browse_resource import ImageBrowseResource
 from .folder_first_image import FolderFirstImageResource
-# from .user_email_completion_notification.py import UserEmailCompletionNotificationResource
+from .user_email_completion_notification import UserEmailCompletionNotificationResource
 from . import ctk_cli_adjustment  # noqa - for side effects
 
 from girder.models.model_base import ModelImporter
@@ -295,7 +295,7 @@ def load(info):
 
     ImageBrowseResource(info['apiRoot'])
     FolderFirstImageResource(info['apiRoot'])
-    # UserEmailCompletionNotificationResource(info['apiRoot'])
+    UserEmailCompletionNotificationResource(info['apiRoot'])
 
     # The interface is always available under histomicstk and also available
     # under the specified path.

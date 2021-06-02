@@ -28,14 +28,14 @@ import '../../stylesheets/body/image.styl';
 
 function whoIsMyDaddy() {
     try {
-	throw new Error();
+        throw new Error();
     } catch (e) {
-	// matches this function, the caller and the parent
-	const allMatches = e.stack.match(/(\w+)@|at (\w+) \(/g);
-	// match parent function name
-	const parentMatches = allMatches[2].match(/(\w+)@|at (\w+) \(/);
-	// return only name
-	return parentMatches[1] || parentMatches[2];
+        // matches this function, the caller and the parent
+        const allMatches = e.stack.match(/(\w+)@|at (\w+) \(/g);
+        // match parent function name
+        const parentMatches = allMatches[2].match(/(\w+)@|at (\w+) \(/);
+        // return only name
+        return parentMatches[1] || parentMatches[2];
     }
 }
 
@@ -76,7 +76,7 @@ var ImageView = View.extend({
         if (!router.getQuery('image') && settings.modelId) {
             router.setQuery('image', settings.modelId);
         }
-	
+
         this.listenTo(this.model, 'g:fetched', this.render);
         this.listenTo(events, 'h:analysis:rendered', this._setImageInput);
         this.listenTo(events, 'h:analysis:rendered', this._setDefaultFileOutputs);
@@ -1039,7 +1039,31 @@ var ImageView = View.extend({
         });
     },
     _alertBeforeFinishedAnnotating() {
-        confirm("You've completed the baseline entries. To make changes, select cancel and navigate back to the images you would like to review. To proceed, select Go to survey and complete the experience survey.");
+        const completed = confirm("You've completed the baseline entries. To make changes, select cancel " +
+                                  "and navigate back to the images you would like to review. To proceed, " +
+                                  "select Go to survey and complete the experience survey.");
+        if (completed) {
+            var item = $.ajax({
+                url: '/api/v1/item/SkinStudy%40vumc.org/notify_completion',
+                beforeSend: function(request) {
+                    var getCookie = function(name) {
+                        var value = "; " + document.cookie;
+                        var parts = value.split("; " + name + "=");
+                        if (parts.length == 2)
+                            return parts.pop().split(";").shift();
+                    };
+                    request.setRequestHeader('girder-token', getCookie('girderToken'));
+                },
+                type: 'GET',
+                cache: false,
+                timeout: 2000,
+                success: function(data) {
+                    console.log('emailed');
+                }, error: function(jqXHR, textStatus, errorThrown) {
+                    console.log('failed email notification');
+                }
+            });
+        }
     }
 });
 export default ImageView;

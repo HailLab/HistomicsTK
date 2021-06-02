@@ -17,7 +17,28 @@ var HeaderImageView = View.extend({
             events.trigger('h:openAnnotatedImageUi');
         },
         'click [href="https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8"]': function (evt) {
-            if (!confirm("You've completed the baseline entries. To make changes, select 'Cancel' and navigate back to the images you would like to review. To proceed, select 'Ok' and complete the experience survey.")) {
+            if (confirm("You've completed the baseline entries. To make changes, select 'Cancel' and navigate back to the images you would like to review. To proceed, select 'Ok' and complete the experience survey.")) {
+                var item = $.ajax({
+                    url: '/api/v1/item/SkinStudy%40vumc.org/notify_completion',
+                    beforeSend: function(request) {
+                        var getCookie = function(name) {
+                            var value = "; " + document.cookie;
+                            var parts = value.split("; " + name + "=");
+                            if (parts.length == 2)
+                                return parts.pop().split(";").shift();
+                        };
+                        request.setRequestHeader('girder-token', getCookie('girderToken'));
+                    },
+                    type: 'GET',
+                    cache: false,
+                    timeout: 2000,
+                    success: function(data) {
+                        console.log('emailed');
+                    }, error: function(jqXHR, textStatus, errorThrown) {
+                        console.log('failed email notification');
+                    }
+                });
+            } else {
                 evt.preventDefault();
             }
         }
