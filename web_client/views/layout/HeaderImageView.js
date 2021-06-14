@@ -74,9 +74,9 @@ var HeaderImageView = View.extend({
         const folderId = router.getQuery('folder') || firstFolder;
         let nextImageLink = this._nextImage;
         if (this._nextImage && this._nextImage.indexOf('https://') < 0) {
-            nextImageLink = this._nextImage ? `#?image=${this._nextImage}${folder}${analysis}` : null;
+            nextImageLink = this._nextImage ? `#?image=${this._nextImage}${analysis}` : null;
         }
-        const previousImageLink = this._previousImage ? `#?image=${this._previousImage}${folder}${analysis}` : null;
+        const previousImageLink = this._previousImage ? `#?image=${this._previousImage}${analysis}` : null;
         restRequest({
             url: `item/${folderId}/first_image?folder=${folderId}`
         }).done((first) => {
@@ -93,7 +93,7 @@ var HeaderImageView = View.extend({
                 previousImageLink: previousImageLink,
                 firstImageLink: firstImageLink
             }));
-        })
+        });
         return this;
     },
 

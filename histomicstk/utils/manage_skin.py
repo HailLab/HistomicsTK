@@ -132,6 +132,8 @@ elif args.operation == 'process' or args.operation == 'process_baseline':
         for aid, annotation in annotations_details.iteritems():
             try:
                 a = group_by_name[annotation['name']]
+                if a['firstName'] not in ['Xiaoqi']:
+                    continue
                 access_dict["users"] = [
                 admin_user,
                 {
