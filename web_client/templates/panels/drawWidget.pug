@@ -38,6 +38,10 @@ block content
       button.h-ok.btn.btn-default(
         type='button', data-toggle='tooltip', title='No active arithemia', class=nogvhd ? 'active' : null)
         | #[span.icon-ok]No epidermal activity
+    .btn-group.btn-group-sm(role='group')
+      button.h-question-circle.btn.btn-default(
+        type='button', data-toggle='tooltip', title='Low confidence in annotation', class=unconfident ? 'active' : null)
+        | #[span.icon-help]Unconfident
 
   if elements.length
     .h-elements-container

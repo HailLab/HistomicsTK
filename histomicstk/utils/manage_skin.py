@@ -6,6 +6,9 @@ import requests
 import json
 import os
 import sys
+import glob
+import tarfile
+import time
 from dateutil import parser
 
 
@@ -33,7 +36,7 @@ args = argparser.parse_args()
 # create copy all annotations from the first image to all the rest
 
 ITEM_API_URL = 'item'
-ITEM_QUERY_STRING = '&limit=50&sort=lowerName&sortdir=1'
+ITEM_QUERY_STRING = '&limit=5000&sort=lowerName&sortdir=1'
 ANNOTATION_API_URL = 'annotation'
 GROUP_API_URL = 'group'
 MULTIPLE_ANNOTATIONS = 'annotation/item/'
@@ -132,8 +135,8 @@ elif args.operation == 'process' or args.operation == 'process_baseline':
         for aid, annotation in annotations_details.iteritems():
             try:
                 a = group_by_name[annotation['name']]
-                if a['firstName'] not in ['Xiaoqi']:
-                    continue
+                # if a['firstName'] not in ['Xiaoqi']:
+                #     continue
                 access_dict["users"] = [
                 admin_user,
                 {
@@ -147,6 +150,10 @@ elif args.operation == 'process' or args.operation == 'process_baseline':
             except KeyError:
                 print 'No user {0} in group'.format(annotation['name'])
 elif args.operation == 'export':
+    folder_url = args.url + ACCESS_API_URL + '/' + args.folder
+    folder = requests.get(folder_url, headers=item_headers)
+    folder = json.loads(folder.content)
+
     for item in items:
         updated = parser.parse(item['updated'])
         localtz = pytz.timezone("America/Chicago")
@@ -172,7 +179,21 @@ elif args.operation == 'export':
                     annotations_within_range.append(annotation)
             if annotations_within_range:
                 with open(item['name'] + '.json', 'wb') as f:
-                    f.write(json.dumps([anno for anno in annotations_within_range]))
+                    item['annotations'] = [anno for anno in annotations_within_range]
+                    f.write(json.dumps(item))
+    if startdate and enddate:
+        range_str = '-' + startdate + '--' + enddate
+    elif startdate:
+        range_str = '-before-' + startdate
+    elif enddate:
+        range_str = '-after-' + enddate
+    else:
+        range_str = ''
+    tar_obj = tarfile.open(folder['name'] + '-' + item['folderId'] + range_str + '.tar.gz', 'w')
+    json_files = glob.glob("*.json")
+    [tar_obj.add(json_file) for json_file in json_files]
+    tar_obj.close()
+    [os.remove(json_file) for json_file in json_files]
 elif args.operation == 'status':
     completed_annotations_cts = {}
     completed_annotations = {}
