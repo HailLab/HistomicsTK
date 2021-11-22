@@ -36,12 +36,17 @@ block content
         | #[span.icon-move]Pan
     .btn-group.btn-group-sm(role='group')
       button.h-ok.btn.btn-default(
-        type='button', data-toggle='tooltip', title='No active arithemia', class=nogvhd ? 'active' : null)
+        type='button', data-toggle='tooltip', title='No active erythema', class=nogvhd ? 'active' : null)
         | #[span.icon-ok]No epidermal activity
     .btn-group.btn-group-sm(role='group')
-      button.h-question-circle.btn.btn-default(
+      button.h-unconfident.btn.btn-default(
         type='button', data-toggle='tooltip', title='Low confidence in annotation', class=unconfident ? 'active' : null)
         | #[span.icon-help]Unconfident
+    if survey_submit
+      .btn-group.btn-group-sm(role='group')
+        button.h-skin-survey.btn.btn-default(
+          type='button', data-toggle='tooltip', title='Submit images back to REDCap survey', class='')
+          | #[span.icon-ok-circle]Completed all images
 
   if elements.length
     .h-elements-container

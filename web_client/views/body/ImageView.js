@@ -45,8 +45,7 @@ var ImageView = View.extend({
         'keyup .h-image-body': '_onKeyUp',
         'keydown .geojs-map': '_handleKeyDown',
         'click .h-control-panel-container .s-close-panel-group': '_closeAnalysis',
-        'mousemove .geojs-map': '_trackMousePosition',
-        'click [href="https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8"]': '_alertBeforeFinishedAnnotating'
+        'mousemove .geojs-map': '_trackMousePosition'
     },
     initialize(settings) {
         this.viewerWidget = null;
@@ -279,44 +278,7 @@ var ImageView = View.extend({
         return View.prototype.destroy.apply(this, arguments);
     },
     openImage(id) {
-        /* eslint-disable backbone/no-silent */
-        if (TimeMe.getTimeOnCurrentPageInSeconds() > 6) {
-            if ('activeAnnotation' in this && 'attributes' in this.activeAnnotation && this.activeAnnotation.attributes.annotation.name) {
-                const anno = this.activeAnnotation.attributes.annotation.name;
-                // Seems to set even bedore navigating away if you move window to background 
-                var data = {};
-                if (typeof this.model.attributes.meta !== 'undefined' && ('time-' + anno) in this.model.attributes.meta && this.model.attributes.meta['time-' + anno]) {
-                    data["time-" + anno] = TimeMe.getTimeOnCurrentPageInSeconds() + parseFloat(this.model.attributes.meta['time-' + anno]);
-                } else {
-                    data["time-" + anno] = TimeMe.getTimeOnCurrentPageInSeconds();
-                }
-                if (typeof this.model.attributes.meta !== 'undefined') {
-                    data['zoom-' + anno] = this.model.attributes.meta['zoom-' + anno];
-                }
-                var item = $.ajax({
-                    url: '/api/v1/item/' + this.model.attributes._id + '/metadata',
-                    beforeSend: function(request) {
-                        var getCookie = function(name) {
-                            var value = "; " + document.cookie; 
-                            var parts = value.split("; " + name + "=");
-                            if (parts.length == 2)
-                                return parts.pop().split(";").shift();
-                        };
-                        request.setRequestHeader('girder-token', getCookie('girderToken'));
-                    },
-                    data: JSON.stringify(data),
-                    contentType: "application/json; charset=utf-8",
-                    type: 'PUT',
-                    cache: false,
-                    timeout: 5000,
-                    success: function(data) {
-                        console.log('ImageView.js', data);
-                    }, error: function(jqXHR, textStatus, errorThrown) {
-                        alert('error ' + textStatus + " " + errorThrown);
-                    }
-                });
-            }
-        }
+        this.writeAnnotatorImageMetadata();
 
         TimeMe.resetAllRecordedPageTimes();
 
@@ -827,6 +789,7 @@ var ImageView = View.extend({
         if ('activeAnnotation' in this && 'attributes' in this.activeAnnotation && this.activeAnnotation.attributes.annotation.name) {
             const anno = this.activeAnnotation.attributes.annotation.name;
             const zoom = parseFloat(this.viewer.zoom());
+            console.log('zoom-' + zoom);
             if ((typeof this.model.attributes.meta !== 'undefined' && ('zoom-' + anno) in this.model.attributes.meta && this.model.attributes.meta['zoom-' + anno] && zoom > parseFloat(this.model.attributes.meta['zoom-' + anno])) || typeof this.model.attributes.meta !== 'undefined' && !(('zoom-' + anno) in this.model.attributes.meta)) {
                 this.model.attributes.meta['zoom-' + anno] = zoom;
             }
@@ -1037,33 +1000,6 @@ var ImageView = View.extend({
             elementsCollection.remove(elements, { silent: true });
             elementsCollection.trigger('reset', elementsCollection);
         });
-    },
-    _alertBeforeFinishedAnnotating() {
-        const completed = confirm("You've completed the baseline entries. To make changes, select cancel " +
-                                  "and navigate back to the images you would like to review. To proceed, " +
-                                  "select Go to survey and complete the experience survey.");
-        if (completed) {
-            var item = $.ajax({
-                url: '/api/v1/item/SkinStudy%40vumc.org/notify_completion',
-                beforeSend: function(request) {
-                    var getCookie = function(name) {
-                        var value = "; " + document.cookie;
-                        var parts = value.split("; " + name + "=");
-                        if (parts.length == 2)
-                            return parts.pop().split(";").shift();
-                    };
-                    request.setRequestHeader('girder-token', getCookie('girderToken'));
-                },
-                type: 'GET',
-                cache: false,
-                timeout: 2000,
-                success: function(data) {
-                    console.log('emailed');
-                }, error: function(jqXHR, textStatus, errorThrown) {
-                    console.log('failed email notification');
-                }
-            });
-        }
     }
 });
 export default ImageView;

@@ -49,7 +49,11 @@ class ImageBrowseResource(ItemResource):
         except ValueError:
             raise RestException('Id is not an image', 404)
         if index >= len(allImages) - 1 and str(folder['_id']) == '5f0dc45cc9f8c18253ae949b':
-            nextImage = {u'size': 3016797, u'_id': u'https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8', u'description': u'', u'baseParentType': u'collection', u'baseParentId': u'5e4719631c7080564deb44e5', u'creatorId': u'5e2f35c7e7a8d01deb3964f3', u'folderId': u'5f0dc45cc9f8c18253ae949b', u'lowerName': u'survey.jpg', u'name': u'survey.JPG'}
+            user_email = user.get('email', 'unknown_user').lower()
+            nextImage = {u'size': 3016797, u'_id': u'https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8&skin_email=' + user_email, u'description': u'', u'baseParentType': u'collection', u'baseParentId': u'5e4719631c7080564deb44e5', u'creatorId': u'5e2f35c7e7a8d01deb3964f3', u'folderId': u'5f0dc45cc9f8c18253ae949b', u'lowerName': u'survey.jpg', u'name': u'survey.JPG'}
+        elif index >= len(allImages) - 1 and str(folder['_id']) == '5f0dc449c9f8c18253ae949a':
+            user_email = user.get('email', 'unknown_user').lower()
+            nextImage = {u'size': 3016797, u'_id': u'https://redcap.vanderbilt.edu/surveys/?s=RARCDR4N443KDYHR&user_id=' + user_email, u'description': u'', u'baseParentType': u'collection', u'baseParentId': u'5e4719631c7080564deb44e5', u'creatorId': u'5e2f35c7e7a8d01deb3964f3', u'folderId': u'5f0dc449c9f8c18253ae949a', u'lowerName': u'survey.jpg', u'name': u'survey.JPG'}
         else:
             nextImage = allImages[(index + 1) % len(allImages)]
         return {

@@ -16,21 +16,23 @@ class UserEmailCompletionNotificationResource(UserResource):
 
         self.resourceName = 'user'
         self._model = UserModel()
-        apiRoot.item.route('GET', (':email', 'notify_completion'), self.emailCompletionNotification)
+        apiRoot.item.route('GET', (':email', ':project', 'notify_completion'), self.emailCompletionNotification)
 
     @access.public
     @autoDescribeRoute(
         Description('Email project lead to inform them of work completion.')
         .param('email', 'The email address of the recipient.',
                dataType='string', required=True)
+        .param('project', 'The project which was completed.',
+               dataType='string', required=True)
         .errorResponse()
         .errorResponse('Email address invalid.', code=404)
     )
-    def emailCompletionNotification(self, email):
+    def emailCompletionNotification(self, email, project):
         user = self.getCurrentUser()
         mail_utils.sendEmail(
-            to=email, subject='Skin baseline completion: {email_addr}'.format(email_addr=user.get('email', 'unknown_user').lower()),
-            text='The user {email_addr} completed baseline.'.format(email_addr=user.get('email', 'unknown_user').lower()),
+            to=email, subject='Skin {project} completion: {email_addr}'.format(email_addr=user.get('email', 'unknown_user').lower(), project=project),
+            text='The user {email_addr} completed {project}.'.format(email_addr=user.get('email', 'unknown_user').lower(), project=project),
         )
         return {'message': 'Emailed.'}
 

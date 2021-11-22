@@ -16,32 +16,12 @@ var HeaderImageView = View.extend({
         'click .h-open-annotated-image': function (evt) {
             events.trigger('h:openAnnotatedImageUi');
         },
-        'click [href="https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8"]': function (evt) {
-            if (confirm("You've completed the baseline entries. To make changes, select 'Cancel' and navigate back to the images you would like to review. To proceed, select 'Ok' and complete the experience survey.")) {
-                var item = $.ajax({
-                    url: '/api/v1/item/SkinStudy%40vumc.org/notify_completion',
-                    beforeSend: function(request) {
-                        var getCookie = function(name) {
-                            var value = "; " + document.cookie;
-                            var parts = value.split("; " + name + "=");
-                            if (parts.length == 2)
-                                return parts.pop().split(";").shift();
-                        };
-                        request.setRequestHeader('girder-token', getCookie('girderToken'));
-                    },
-                    type: 'GET',
-                    cache: false,
-                    timeout: 2000,
-                    success: function(data) {
-                        console.log('emailed');
-                    }, error: function(jqXHR, textStatus, errorThrown) {
-                        console.log('failed email notification');
-                    }
-                });
-            } else {
-                evt.preventDefault();
-            }
-        }
+        'click .h-open-help-modal': function (evt) {
+            console.log('help modal trigger');
+            events.trigger('h:openHelpModalUi');
+        },
+        'click [href*="https://redcap.vanderbilt.edu/surveys/?s=HH3D3PMNM8"]': '_alertBeforeFinishedAnnotatingBaseline',
+        'click [href*="https://redcap.vanderbilt.edu/surveys/?s=RARCDR4N443KDYHR"]': '_alertBeforeFinishedAnnotatingRCT'
     },
 
     initialize() {
@@ -95,6 +75,45 @@ var HeaderImageView = View.extend({
             }));
         });
         return this;
+    },
+
+    _alertBeforeFinishedAnnotatingBaseline(evt) {
+        this._alertBeforeFinishedAnnotating('baseline', evt);
+    },
+
+    _alertBeforeFinishedAnnotatingRCT(evt) {
+        this._alertBeforeFinishedAnnotating('rct', evt);
+    },
+
+    _alertBeforeFinishedAnnotating(groupName, evt) {
+        const cont = confirm("You've completed the " + groupName + " entries. To make changes, " +
+                             "select cancel and navigate back to the images you would like to review. " +
+                             "To proceed, select Go to survey and complete the experience survey.");
+        if (cont) {
+            this.writeAnnotatorImageMetadata();
+            var item = $.ajax({
+                url: '/api/v1/item/SkinStudy%40vumc.org/' + groupName + '/notify_completion',
+                beforeSend: function(request) {
+                    var getCookie = function(name) {
+                        var value = "; " + document.cookie;
+                        var parts = value.split("; " + name + "=");
+                        if (parts.length == 2)
+                            return parts.pop().split(";").shift();
+                    };
+                    request.setRequestHeader('girder-token', getCookie('girderToken'));
+                },
+                type: 'GET',
+                cache: false,
+                timeout: 2000,
+                success: function(data) {
+                    console.log('emailed');
+                }, error: function(jqXHR, textStatus, errorThrown) {
+                    console.log('failed email notification');
+                }
+            });
+        } else {
+            evt.preventDefault();
+        }
     },
 
     _setNextPreviousImage() {

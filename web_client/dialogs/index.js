@@ -4,6 +4,7 @@ import openImage from './openImage';
 import editElement from './editElement';
 import saveAnnotation from './saveAnnotation';
 import editRegionOfInterest from './editRegionOfInterest';
+import openHelpModal from './openHelpModal';
 
 export {
     confirmDialog,
@@ -11,5 +12,6 @@ export {
     openImage,
     editElement,
     saveAnnotation,
-    editRegionOfInterest
+    editRegionOfInterest,
+    openHelpModal
 };

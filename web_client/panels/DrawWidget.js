@@ -22,7 +22,8 @@ var DrawWidget = Panel.extend({
         'click .h-draw': 'drawElement',
         'click .h-pan': 'drawElement',
         'click .h-ok': 'noGvhd',
-        'click .h-unconfident': 'uncofident',
+        'click .h-unconfident': 'unconfident',
+        'click .h-skin-survey': 'skin_survey',
         'change .h-style-group': '_setStyleGroup',
         'click .h-configure-style-group': '_styleGroupEditor',
         'mouseenter .h-element': '_highlightElement',
@@ -104,11 +105,16 @@ var DrawWidget = Panel.extend({
             },
             async: false
         });
+        console.log('item then this');
+        console.log(item);
+        console.log(this);
         if ('meta' in item.responseJSON && 'unconfident-' + this.annotation.attributes.annotation.name.replace(/\./g, '') in item.responseJSON.meta) {
             unconfident = !!item.responseJSON.meta['unconfident-' + this.annotation.attributes.annotation.name.replace(/\./g, '')];
         }
-        if ('meta' in item.responseJSON && 'unconfident-' + this.annotation.attributes.annotation.name.replace(/\./g, '') in item.responseJSON.meta) {
-            unconfident = !!item.responseJSON.meta['unconfident-' + this.annotation.attributes.annotation.name.replace(/\./g, '')];
+        var survey_submit = false;
+        const skin_survey_folder = '60f600aa40582164e9ac5f25';
+        if (this.image && this.image.attributes && this.image.attributes.folderId && this.image.attributes.folderId == skin_survey_folder) {
+            survey_submit = true;
         }
         // console.log(JSON.stringify(JSON.decycle(this)));
         if (this._skipRenderHTML) {
@@ -122,10 +128,10 @@ var DrawWidget = Panel.extend({
                 highlighted: this._highlighted,
                 nogvhd: nogvhd,
                 unconfident: unconfident,
+                survey_submit: survey_submit,
                 name
              }));
         }
-        console.log(this._drawingType);
         if (this._drawingType) {
             this.$('button.h-draw[data-type="' + this._drawingType + '"]').addClass('active');
             this.$('button.h-pan').removeClass('active');
@@ -157,7 +163,6 @@ var DrawWidget = Panel.extend({
      * @param {event} Girder event that triggered drawing a region.
      */
     _widgetDrawRegion(evt) {
-        console.log('h-pan active');
         this._drawingType = null;
         this.$('button.h-draw').removeClass('active');
         this.$('button.h-pan').addClass('active');
@@ -219,8 +224,6 @@ var DrawWidget = Panel.extend({
      */
     drawElement(evt, type) {
         var $el;
-        console.log('drawElement');
-        console.log(evt);
         if (evt) {
             $el = this.$(evt.currentTarget);
             $el.tooltip('hide');
@@ -295,7 +298,6 @@ var DrawWidget = Panel.extend({
             cache: false,
             timeout: 5000,
             success: function(data) {
-                console.log(data);
                 $el.toggleClass('active');
             }, error: function(jqXHR, textStatus, errorThrown) {
                 alert('error ' + textStatus + " " + errorThrown);
@@ -342,7 +344,6 @@ var DrawWidget = Panel.extend({
             cache: false,
             timeout: 5000,
             success: function(data) {
-                console.log(data);
                 $el.toggleClass('active');
             }, error: function(jqXHR, textStatus, errorThrown) {
                 alert('error ' + textStatus + " " + errorThrown);
@@ -350,11 +351,51 @@ var DrawWidget = Panel.extend({
         });
     },
 
+    /**
+     * Submit images to survey using API, only for Skin Survey
+     *
+     * @param {jQuery.Event} [evt] The button click that triggered this event.
+     *      `undefined` to use a passed-in type.
+     */
+    skin_survey(evt) {
+        var $el;
+        var active = false;
+        if (evt) {
+            $el = this.$(evt.currentTarget);
+            $el.tooltip('hide');
+            active = $el.hasClass('active');
+        }
+        /*
+        var item = $.ajax({
+            url: '/api/v1/item/' + this.image.attributes._id + '/metadata',
+            beforeSend: function(request) {
+                var getCookie = function(name) {
+                    var value = "; " + document.cookie;
+                    var parts = value.split("; " + name + "=");
+                    if (parts.length == 2)
+                        return parts.pop().split(";").shift();
+                };
+                request.setRequestHeader('girder-token', getCookie('girderToken'));
+            },
+            data: JSON.stringify(data),
+            contentType: "application/json; charset=utf-8",
+            type: 'PUT',
+            cache: false,
+            timeout: 5000,
+            success: function(data) {
+                $el.toggleClass('active');
+            }, error: function(jqXHR, textStatus, errorThrown) {
+                alert('error ' + textStatus + " " + errorThrown);
+            }
+        });
+        */
+        console.log('Skin Survey submitted.');
+    },
+
     cancelDrawMode() {
         this.drawElement(undefined, null);
         this.viewer.annotationLayer._boundHistomicsTKModeChange = false;
         this.viewer.annotationLayer.geoOff(window.geo.event.annotation.state);
-        console.log('pan-activate');
         this.$('button.h-pan').addClass('active');
     },
 
@@ -363,9 +404,7 @@ var DrawWidget = Panel.extend({
     },
 
     _onKeyDown(evt) {
-        console.log(evt);
         if (evt.key === 'd') {
-            console.log(this.$('.h-draw.active[data-type="line"]'));
             if (this.$('.h-draw.active[data-type="line"]')) {
                 this.drawElement(undefined, 'line');
             } else {
