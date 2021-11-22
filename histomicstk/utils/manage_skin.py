@@ -397,7 +397,6 @@ elif args.operation == 'get_from_recap':
             os.mkdir(os.path.join(args.datadir, record))
         except OSError:
             pass  # if the directory exists, just add to it
-    import pdb; pdb.set_trace()
     fields_all = [merge_dicts(fields_file_base, {'record': record_id, 'field': filename}) for filename in file_fields_annotator for record_id in records.keys()]
     for fields in fields_all:
         req = requests.post(apiurl, data=fields)
