@@ -105,15 +105,21 @@ var DrawWidget = Panel.extend({
             },
             async: false
         });
-        console.log('item then this');
-        console.log(item);
-        console.log(this);
         if ('meta' in item.responseJSON && 'unconfident-' + this.annotation.attributes.annotation.name.replace(/\./g, '') in item.responseJSON.meta) {
             unconfident = !!item.responseJSON.meta['unconfident-' + this.annotation.attributes.annotation.name.replace(/\./g, '')];
         }
         var survey_submit = false;
-        const skin_survey_folder = '60f600aa40582164e9ac5f25';
-        if (this.image && this.image.attributes && this.image.attributes.folderId && this.image.attributes.folderId == skin_survey_folder) {
+        const user = getCurrentUser();
+        const SKIN_GROUP_ID = '629ff512234d56ac7568f286';
+        // const skin_survey_folder = '60f600aa40582164e9ac5f25';
+        // if (this.image && this.image.attributes && this.image.attributes.folderId && this.image.attributes.folderId == skin_survey_folder) {
+        //     survey_submit = true;
+        // }
+        console.log('GROUP STUFF');
+        console.log(user);
+        console.log(user.attributes.groups);
+        console.log(SKIN_GROUP_ID);
+        if (user.attributes.groups.indexOf(SKIN_GROUP_ID) > -1) {
             survey_submit = true;
         }
         // console.log(JSON.stringify(JSON.decycle(this)));

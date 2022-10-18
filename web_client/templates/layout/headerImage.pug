@@ -25,7 +25,7 @@ button.btn.btn-default.navbar-btn.h-open-help-modal(type='button')
   | #[span.icon-help] Help
 button.btn.btn-default.navbar-btn.h-open-annotated-image(type='button')
   | #[span.icon-list] Image list
-if user && user.groups && user.groups.indexOf('5f0dc574c9f8c18253ae949e')
+if user && user.groups && (user.groups.indexOf('5f0dc574c9f8c18253ae949e') || user.groups.indexOf('629ff512234d56ac7568f286'))
   button.btn.btn-default.navbar-btn.h-open-image(type='button')
     | #[span.icon-picture] Open image
 span.h-links

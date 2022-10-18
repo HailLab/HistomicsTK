@@ -27,6 +27,7 @@ from .handlers import process_annotations
 from .constants import PluginSettings
 from .image_browse_resource import ImageBrowseResource
 from .folder_first_image import FolderFirstImageResource
+from .send_to_redcap.py import SendToRedcapItemResource
 from .user_email_completion_notification import UserEmailCompletionNotificationResource
 from . import ctk_cli_adjustment  # noqa - for side effects
 
@@ -295,6 +296,7 @@ def load(info):
 
     ImageBrowseResource(info['apiRoot'])
     FolderFirstImageResource(info['apiRoot'])
+    SendToRedcapItemResource(info['apiRoot'])
     UserEmailCompletionNotificationResource(info['apiRoot'])
 
     # The interface is always available under histomicstk and also available

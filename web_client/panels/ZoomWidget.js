@@ -110,7 +110,7 @@ var ZoomWidget = Panel.extend({
         this._zoomSliderInput();
 
         const user = getCurrentUser();
-        const expert = user.attributes.groups.indexOf('5f0dc574c9f8c18253ae949e') > 0;
+        const expert = user.attributes.groups.indexOf('5f0dc574c9f8c18253ae949e') > 0 || user.attributes.groups.indexOf('629ff512234d56ac7568f286') > 0;
         console.log("TEST TEST location --->  ", this);
 
         if (!expert) {

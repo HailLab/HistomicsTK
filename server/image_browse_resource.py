@@ -41,7 +41,7 @@ class ImageBrowseResource(ItemResource):
             children = folderModel.childItems(folder)
 
         allImages = [item for item in children if _isLargeImageItem(item)]
-        if expert_group not in groups:
+        if expert_group not in groups and 'meta' in folder and 'order' in folder['meta'] and folder['meta']['order'] == 'shuffle':
             random.seed(user.get('_id'))
             random.shuffle(allImages)
         try:

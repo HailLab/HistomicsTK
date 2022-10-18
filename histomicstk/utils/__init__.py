@@ -17,6 +17,7 @@ from .merge_colinear import merge_colinear
 from .fit_poisson_mixture import fit_poisson_mixture
 from .simple_mask import simple_mask
 from .sample_pixels import sample_pixels  # must import after SimpleMask
+from .manage_skin import parse_filename
 from . import general_utils
 from . import girder_convenience_utils
 
@@ -38,4 +39,5 @@ __all__ = (
     'simple_mask',
     'general_utils',
     'girder_convenience_utils',
+    'parse_filename',
 )

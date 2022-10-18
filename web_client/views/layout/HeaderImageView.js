@@ -45,8 +45,11 @@ var HeaderImageView = View.extend({
     render() {
         const user = getCurrentUser();
         const cgvhdGroupId = '5f0dc554c9f8c18253ae949d';
-        let firstFolder = '5f0dc45cc9f8c18253ae949b';
+        const baselineGroupId = '5f0dc532c9f8c18253ae949c';
+        let firstFolder;
         if (user.attributes.groups.indexOf(cgvhdGroupId) >= 0) {
+            firstFolder = '5f0dc45cc9f8c18253ae949b';
+        } else if (user.attributes.groups.indexOf(baselineGroupId) >= 0) {
             firstFolder = '5f0dc449c9f8c18253ae949a';
         }
         const analysis = router.getQuery('analysis') ? `&analysis=${router.getQuery('analysis')}` : '';
@@ -57,23 +60,25 @@ var HeaderImageView = View.extend({
             nextImageLink = this._nextImage ? `#?image=${this._nextImage}${analysis}` : null;
         }
         const previousImageLink = this._previousImage ? `#?image=${this._previousImage}${analysis}` : null;
-        restRequest({
-            url: `item/${folderId}/first_image?folder=${folderId}`
-        }).done((first) => {
-            this._firstImage = first._id;
-            this._firstFolder = typeof first.folderId !== 'undefined' ? '&folder=' + first.folderId : folder;
-            var firstImageLink = null;
-            if (router.getQuery('image') != this._firstImage) {
-                firstImageLink = this._firstImage ? `#?image=${this._firstImage}${this._firstFolder}` : `#?image=${firstImage}&folder=$(firstFolder)`;
-            }
-            this.$el.html(headerImageTemplate({
-                image: this.imageModel,
-                parentChain: this.parentChain,
-                nextImageLink: nextImageLink,
-                previousImageLink: previousImageLink,
-                firstImageLink: firstImageLink
-            }));
-        });
+        if (typeof firstFolder !== 'undefined') {
+            restRequest({
+                url: `item/${folderId}/first_image?folder=${folderId}`
+            }).done((first) => {
+                this._firstImage = first._id;
+                this._firstFolder = typeof first !== 'undefined' && typeof first.folderId !== 'undefined'  ? '&folder=' + first.folderId : folder;
+                var firstImageLink = null;
+                if (router.getQuery('image') != this._firstImage) {
+                    firstImageLink = this._firstImage ? `#?image=${this._firstImage}${this._firstFolder}` : `#?image=${firstImage}&folder=$(firstFolder)`;
+                }
+                this.$el.html(headerImageTemplate({
+                    image: this.imageModel,
+                    parentChain: this.parentChain,
+                    nextImageLink: nextImageLink,
+                    previousImageLink: previousImageLink,
+                    firstImageLink: firstImageLink
+                }));
+            });
+        }
         return this;
     },
 
@@ -120,6 +125,10 @@ var HeaderImageView = View.extend({
         const model = this.imageModel;
         const folder = router.getQuery('folder') ? `?folderId=${router.getQuery('folder')}` : '';
         const folderId = router.getQuery('folder') || '5f0dc45cc9f8c18253ae949b';
+        const user = getCurrentUser();
+        const cgvhdGroupId = '5f0dc554c9f8c18253ae949d';
+        const baselineGroupId = '5f0dc532c9f8c18253ae949c';
+        console.log('router query string' + router.getQuery('folder'));
         if (!model) {
             this._nextImage = null;
             this._previousImage = null;
@@ -129,11 +138,16 @@ var HeaderImageView = View.extend({
         }
 
         $.when(
-            restRequest({
-                url: `item/${folderId}/first_image${folder}`
-            }).done((first) => {
-                this._firstImage = (first._id !== model.id) ? first._id : null;
-            }),
+            function() {
+                if (user.attributes.groups.indexOf(cgvhdGroupId) >= 0 || user.attributes.groups.indexOf(baselineGroupId) >= 0) {
+                    console.log('inside when');
+                    restRequest({
+                        url: `item/${folderId}/first_image${folder}`
+                    }).done((first) => {
+                        this._firstImage = (first._id !== model.id) ? first._id : null;
+                    })
+                }
+            },
             restRequest({
                 url: `item/${model.id}/previous_image${folder}`
             }).done((previous) => {

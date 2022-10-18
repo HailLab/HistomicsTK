@@ -36,7 +36,8 @@ class FolderFirstImageResource(FolderResource):
     def getFirstImage(self, folder):
         user = ItemResource().getCurrentUser()
         groups = [str(g) for g in user.get('groups', [])]
-        expert_group = '5e3102c0e3c0d89a0744bf50'
+        expert_group = '5f0dc574c9f8c18253ae949e'
+        expert_group_natiens = '629ff512234d56ac7568f286'
 
         folderModel = FolderResource()
         #folder = folderModel.load(folder, user=user, level=AccessType.READ)
@@ -47,7 +48,7 @@ class FolderFirstImageResource(FolderResource):
             children = folderModel.childItems(folder)
 
         allImages = [item for item in children if _isLargeImageItem(item)]
-        if expert_group not in groups:
+        if expert_group not in groups and expert_group_natiens not in groups:
             random.seed(user.get('_id'))
             random.shuffle(allImages)
         return allImages[0]
