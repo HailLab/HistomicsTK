@@ -167,6 +167,14 @@ To create layers for new workers:
     python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --operation process_baseline --token a******************************Y --folder 5f0dc45cc9f8c18253ae949b
     python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --operation process --token a******************************Y --folder 5f0dc449c9f8c18253ae949a
 
+After making alterations to js files:
+*************************************
+girder-install web &
+
+After causing an error in a py file:
+************************************
+Navigate to /#plugins and select "Rebuilt and restart" button in the upper right.
+
 Erata
 #####
 Please refer to https://digitalslidearchive.github.io/HistomicsTK/ for more information.
