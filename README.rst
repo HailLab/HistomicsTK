@@ -121,7 +121,6 @@ To add a new user:
 1. Select Users in the left navigation or navigate to https://skin.app.vumc.org/#users.
 2. Select "Create User" in the top navigation.
 3. Use a login name derived from the first part of the user's email address (before the @ sign).
-4. Use the password MySkinCellsDivideIn1Hour
 
 To add a user to an image group:
 ********************************
