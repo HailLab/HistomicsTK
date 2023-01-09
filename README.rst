@@ -175,7 +175,9 @@ After causing an error in a py file:
 Navigate to /#plugins and select "Rebuilt and restart" button in the upper right.
 
 After making changes to MATLAB script:
-****************************************
+**************************************
+.. code-block:: bash
+
     matlab
     mcc -W python:annotateimage /home/ubuntu/skin-overlay/step1_main_read_json_mask.m
     mcc -m /home/ubuntu/skin-overlay/step1_main_read_json_mask.m
