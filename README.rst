@@ -174,6 +174,14 @@ After causing an error in a py file:
 ************************************
 Navigate to /#plugins and select "Rebuilt and restart" button in the upper right.
 
+After making changes to MATLAB script:
+matlab
+mcc -W python:annotateimage /home/ubuntu/skin-overlay/step1_main_read_json_mask.m
+mcc -m /home/ubuntu/skin-overlay/step1_main_read_json_mask.m
+cp ~/run_step1_main_read_json_mask.sh /opt/histomicstk/HistomicsTK/histomicstk/utils/
+cp ~/step1_main_read_json_mask /opt/histomicstk/HistomicsTK/histomicstk/utils/
+JSON_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/json/' BASELINE_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/imgsrc/' ANNOTATED_IMAGES_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/annotated/' MASKS_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/masks/' /opt/histomicstk/HistomicsTK/histomicstk/utils/run_step1_main_read_json_mask.sh /home/ubuntu/matlab/r2021b/mcr
+
 Erata
 #####
 Please refer to https://digitalslidearchive.github.io/HistomicsTK/ for more information.
