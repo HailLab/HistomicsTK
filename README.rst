@@ -121,7 +121,6 @@ To add a new user:
 1. Select Users in the left navigation or navigate to https://skin.app.vumc.org/#users.
 2. Select "Create User" in the top navigation.
 3. Use a login name derived from the first part of the user's email address (before the @ sign).
-4. Use the password MySkinCellsDivideIn1Hour
 
 To add a user to an image group:
 ********************************
@@ -166,6 +165,25 @@ To create layers for new workers:
     python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --help  # if you want to see a list of all available arguments
     python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --operation process_baseline --token a******************************Y --folder 5f0dc45cc9f8c18253ae949b
     python /opt/histomicstk/HistomicsTK/histomicstk/utils/manage_skin.py --operation process --token a******************************Y --folder 5f0dc449c9f8c18253ae949a
+
+After making alterations to js files:
+*************************************
+girder-install web &
+
+After causing an error in a py file:
+************************************
+Navigate to /#plugins and select "Rebuilt and restart" button in the upper right.
+
+After making changes to MATLAB script:
+**************************************
+.. code-block:: bash
+
+    matlab
+    mcc -W python:annotateimage /home/ubuntu/skin-overlay/step1_main_read_json_mask.m
+    mcc -m /home/ubuntu/skin-overlay/step1_main_read_json_mask.m
+    cp ~/run_step1_main_read_json_mask.sh /opt/histomicstk/HistomicsTK/histomicstk/utils/
+    cp ~/step1_main_read_json_mask /opt/histomicstk/HistomicsTK/histomicstk/utils/
+    JSON_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/json/' BASELINE_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/imgsrc/' ANNOTATED_IMAGES_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/annotated/' MASKS_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/masks/' /opt/histomicstk/HistomicsTK/histomicstk/utils/run_step1_main_read_json_mask.sh /home/ubuntu/matlab/r2021b/mcr
 
 Erata
 #####
