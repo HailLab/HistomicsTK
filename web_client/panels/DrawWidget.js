@@ -366,36 +366,40 @@ var DrawWidget = Panel.extend({
     skin_survey(evt) {
         var $el;
         var active = false;
+        const redcaptoken = 'E82B46ACB5A4ECD0E5B2579507445034';
         if (evt) {
             $el = this.$(evt.currentTarget);
             $el.tooltip('hide');
             active = $el.hasClass('active');
-        }
-        /*
-        var item = $.ajax({
-            url: '/api/v1/item/' + this.image.attributes._id + '/metadata',
-            beforeSend: function(request) {
-                var getCookie = function(name) {
-                    var value = "; " + document.cookie;
-                    var parts = value.split("; " + name + "=");
-                    if (parts.length == 2)
-                        return parts.pop().split(";").shift();
-                };
-                request.setRequestHeader('girder-token', getCookie('girderToken'));
-            },
-            data: JSON.stringify(data),
-            contentType: "application/json; charset=utf-8",
-            type: 'PUT',
-            cache: false,
-            timeout: 5000,
-            success: function(data) {
-                $el.toggleClass('active');
-            }, error: function(jqXHR, textStatus, errorThrown) {
-                alert('error ' + textStatus + " " + errorThrown);
+
+            var data = {
+                id: this.image.attributes._id,
+                redcaptoken: redcaptoken
             }
-        });
-        */
-        console.log('Skin Survey submitted.');
+            var item = $.ajax({
+                url: '/api/v1/item/%7Bid%7D/%7Bredcaptoken%7D/send_to_redcap?id=' + data['id'] + '&redcaptoken=' + redcaptoken,
+                beforeSend: function(request) {
+                    var getCookie = function(name) {
+                        var value = "; " + document.cookie;
+                        var parts = value.split("; " + name + "=");
+                        if (parts.length == 2)
+                            return parts.pop().split(";").shift();
+                    };
+                    request.setRequestHeader('girder-token', getCookie('girderToken'));
+                },
+                contentType: "application/json; charset=utf-8",
+                type: 'POST',
+                cache: false,
+                timeout: 500000,
+                async: true,
+                success: function(data) {
+                    $el.toggleClass('active');
+                    console.log('Skin Survey submitted.');
+                }, error: function(jqXHR, textStatus, errorThrown) {
+                    alert('error ' + textStatus + " " + errorThrown);
+                }
+            });
+        }
     },
 
     cancelDrawMode() {

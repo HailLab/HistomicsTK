@@ -27,7 +27,8 @@
         parentView: null,
         brandName: '${htkBrandName | js}',
         brandColor: '${htkBrandColor | js}',
-        bannerColor: '${htkBannerColor | js}',
+        lastRedcapPull: '${htkLastRedcapPull | js}',
+        bannerColor: '${htkBannerColor | js}'
       });
       app.bindRoutes();
       girder.events.trigger('g:appload.after');

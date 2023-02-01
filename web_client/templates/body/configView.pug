@@ -31,6 +31,12 @@ form#g-histomicstk-form(role="form")
       button#g-histomicstk-banner-default-color.form-control.input-sm(
           type="button", title="Default color") default
   .form-group
+    label(for="g-histomicstk-last-redcap-pull") Last REDCap Pull
+    input#g-histomicstk-last-redcap-pull.form-control.input-sm(
+        type="text", value=settings['histomicstk.last_redcap_pull'] || '',
+        placeholder='YYYY-mm-dd hh:mm:ss',
+        title="The datetime of the last attempt to pull annotations from REDCap.")
+  .form-group
     label
       | Default styles for drawing annotations
     input#g-histomicstk-default-draw-styles.input-sm.form-control(

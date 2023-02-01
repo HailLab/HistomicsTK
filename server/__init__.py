@@ -27,7 +27,7 @@ from .handlers import process_annotations
 from .constants import PluginSettings
 from .image_browse_resource import ImageBrowseResource
 from .folder_first_image import FolderFirstImageResource
-from .send_to_redcap.py import SendToRedcapItemResource
+from .send_to_redcap import SendToRedcapItemResource
 from .user_email_completion_notification import UserEmailCompletionNotificationResource
 from . import ctk_cli_adjustment  # noqa - for side effects
 
@@ -102,6 +102,14 @@ def validateHistomicsTKAnalysisAccess(doc):
     value['public'] = bool(value.get('public'))
 
 
+@setting_utilities.validator(PluginSettings.HISTOMICSTK_LAST_REDCAP_PULL)
+def validateHistomicsTKLastRedcapPull(doc):
+    try:
+        datetime.datetime.strptime(doc['value'], '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        raise ValidationException('Last REDCap Pull must be a date time.')
+
+
 @setting_utilities.validator(PluginSettings.HISTOMICSTK_QUARANTINE_FOLDER)
 def validateHistomicsTKQuarantineFolder(doc):
     if not doc.get('value', None):
@@ -117,6 +125,7 @@ SettingDefault.defaults.update({
     PluginSettings.HISTOMICSTK_BANNER_COLOR: '#f8f8f8',
     PluginSettings.HISTOMICSTK_BRAND_COLOR: '#777777',
     PluginSettings.HISTOMICSTK_ANALYSIS_ACCESS: {'public': True},
+    PluginSettings.HISTOMICSTK_LAST_REDCAP_PULL: '2000-01-01 00:00:00',
 })
 
 
@@ -282,6 +291,7 @@ class WebrootHistomicsTK(Webroot):
         self.updateHtmlVars({
             'title': Setting().get(PluginSettings.HISTOMICSTK_BRAND_NAME),
             'htkBrandName': Setting().get(PluginSettings.HISTOMICSTK_BRAND_NAME),
+            'htkLastRedcapPull': Setting().get(PluginSettings.HISTOMICSTK_LAST_REDCAP_PULL),
             'htkBrandColor': Setting().get(PluginSettings.HISTOMICSTK_BRAND_COLOR),
             'htkBannerColor': Setting().get(PluginSettings.HISTOMICSTK_BANNER_COLOR),
         })

@@ -58,7 +58,8 @@ var ConfigView = View.extend({
             'histomicstk.brand_color',
             'histomicstk.banner_color',
             'histomicstk.default_draw_styles',
-            'histomicstk.quarantine_folder'
+            'histomicstk.quarantine_folder',
+            'histomicstk.last_redcap_pull'
         ];
         $.when(
             restRequest({
