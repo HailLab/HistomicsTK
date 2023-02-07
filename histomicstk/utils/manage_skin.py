@@ -51,7 +51,7 @@ argparser.add_argument('-a', '--admingroup', type=str, default='5f0dc574c9f8c182
 argparser.add_argument('-b', '--baselinegroup', type=str, default='5f0dc532c9f8c18253ae949c', help='ID for baseline group')
 argparser.add_argument('-c', '--collection', type=str, default='5f0dc3ffc9f8c18253ae9499',
                        help='Collection ID used for creating folders')
-argparser.add_argument('-o', '--operation', type=str, default=['status'], nargs='+',
+argparser.add_argument('-o', '--operation', type=str, default=[], nargs='+',
                        choices=[PROCESS_OP, EXPORT_OP, EXPORT_NATIENS_OP, STATUS_OP, PROCESS_BASELINE_OP, PROCESS_NATIENS_OP,
                                 INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, RENDER_ANNOTATIONS_OP,
                                 POLL_ANNOTATIONS_NATIENS_OP],
@@ -86,6 +86,7 @@ ANNOTATION = 'annotation/'
 API_URL_REDCAP = 'https://redcap.vanderbilt.edu/api/'
 LATEST_ANNOTATION_QUERY_STRING = 'annotation?limit=1&sort=created&sortdir=-1'
 SKIN_APP_IMAGE_BASE_URL = 'https://skin.app.vumc.org/histomicstk#?image='
+LAST_REDCAP_PULL_KEY = 'histomicstk.last_redcap_pull'
 
 FILE_FIELDS_VECTRA = {
     'face_f': '02',
@@ -435,7 +436,7 @@ def get_from_redcap(user):
                         f.close()
 
 
-def get_status():
+def get_status(items):
     completed_annotations_cts = {}
     completed_annotations = {}
     for item in items:
@@ -458,7 +459,6 @@ def get_status():
 
 def poll_annotations_natiens(user):
     # Record and update state of last REDCap pull
-    LAST_REDCAP_PULL_KEY = 'histomicstk.last_redcap_pull'
     # Duplicating this validator code here because I can't import server because plugins aren't importing
     @setting_utilities.validator(LAST_REDCAP_PULL_KEY)
     def validateHistomicsTKLastRedcapPull(doc):
@@ -467,9 +467,8 @@ def poll_annotations_natiens(user):
         except ValueError:
             raise ValidationException('Last REDCap Pull must be a date time.')
 
-    setting = Setting()
     new_last_redcap_pull = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    last_redcap_pull = datetime.datetime.strptime(setting.get(LAST_REDCAP_PULL_KEY), '%Y-%m-%d %H:%M:%S')
+    last_redcap_pull = datetime.datetime.strptime(Setting().get(LAST_REDCAP_PULL_KEY), '%Y-%m-%d %H:%M:%S')
 
     # Gather record names from folder names
     folder_natiens = Folder().load(args.folder, force=True)
@@ -487,12 +486,10 @@ def poll_annotations_natiens(user):
     # for r in json.loads(req_records.text):
     #     pilot_ids.append(r['pilot_id2']
     pilot_ids = set(r['pilot_id2'] for r in json.loads(req_records.text) if r['pilot_id2']) or set()
-    if pilot_ids:
-        get_from_redcap(user)
-        setting.set(LAST_REDCAP_PULL_KEY, new_last_redcap_pull)
+    return pilot_ids, new_last_redcap_pull
 
 
-def set_image_metadata(all_new_image_names):
+def set_image_metadata(all_new_image_names, session_folder, user, record_id, session_id):
     for filepath in all_new_image_names:
         item_file = upload_file(
             folder=session_folder,
@@ -503,46 +500,30 @@ def set_image_metadata(all_new_image_names):
         Item().setMetadata(Item().load(item_file['itemId'], user=user), {'record_id': record_id, 'session_id': session_id})
 
 
-def ingest_folder(user):
+def ingest_folder_sessions(record_folder):
+    record_id = record_folder['name']
+    for session_id in os.listdir(os.path.join(args.datadir, args.foldername, record_id)):
+        session_folder = get_or_create_girder_folder(record_folder, session_id, user, 'folder')
+        all_item_names = [i['name'] for i in Folder().childItems(folder=session_folder)]
+        # only upload new images
+        all_new_image_names = [f for f in glob.glob(os.path.join(args.datadir, args.foldername, record_id, session_id, 'imgsrc', '*')) if f not in all_item_names]
+        set_image_metadata(all_new_image_names, session_folder, user, record_id, session_id)
+
+
+def ingest_folder(user, pilot_id=None):
     collection = Collection().load(args.collection, force=True)
     parent_folder = get_or_create_girder_folder(collection, args.foldername, user)
-    for record_id in os.listdir(os.path.join(args.datadir, args.foldername)):
-        record_folder = get_or_create_girder_folder(parent_folder, record_id, user, 'folder')
-        for session_id in os.listdir(os.path.join(args.datadir, args.foldername, record_id)):
-            session_folder = get_or_create_girder_folder(record_folder, session_id, user, 'folder')
-            all_item_names = [i['name'] for i in Folder().childItems(folder=session_folder)]
-            # only upload new images
-            all_new_image_names = [f for f in glob.glob(os.path.join(args.datadir, args.foldername, record_id, session_id, 'imgsrc', '*')) if f not in all_item_names]
-            set_image_metadata(all_new_image_names)
+    if pilot_id:
+        folder_names = [os.path.join(args.datadir, args.foldername, pilot_id)]
+    else:
+        folder_names = os.listdir(os.path.join(args.datadir, args.foldername))
+    for record_path in folder_names:
+        record_folder = get_or_create_girder_folder(parent_folder, os.path.basename(record_path), user, 'folder')
+        ingest_folder_sessions(record_folder)
 
 
-pilot_ids = set()
-if set(args.operation) & set([PROCESS_OP, PROCESS_BASELINE_OP, PROCESS_NATIENS_OP, EXPORT_OP, EXPORT_NATIENS_OP, STATUS_OP]):
-    item_url = args.url + ITEM_API_URL + '?folderId=' + args.folder + ITEM_QUERY_STRING
-    items = requests.get(item_url, headers=item_headers)
-    items = json.loads(items.content)
-    if 'message' in items:
-        sys.stderr.write(items['message'] + "\n")
-if set(args.operation) & set([INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, POLL_ANNOTATIONS_NATIENS_OP]):
-    current_token = Token().load(args.token, force=True, objectId=False)
-    user = User().load(current_token['userId'], force=True)
-
-
-# Get status of annotation layers from SkinApp
-if STATUS_OP in args.operation:
-    get_status()
-# Check if new annotations are available in NATIENS to process
-if POLL_ANNOTATIONS_NATIENS_OP in args.operation:
-    poll_annotations_natiens(user)
-# Download files from REDCap into an OS folder
-if GET_FROM_REDCAP_OP in args.operation:
-    get_from_redcap(user)
-# Ingest OS folder into Girder collection folder
-if INGEST_FOLDER_OP in args.operation:
-    ingest_folder()
-# creates annotation layers
-if PROCESS_OP in args.operation or PROCESS_BASELINE_OP in args.operation:
-    group_worker_or_baseline = args.workergroup if args.operation == 'process' else args.baselinegroup
+def process_access_helper():
+    group_worker_or_baseline = args.workergroup if 'process' in args.operation else args.baselinegroup
     group_url = args.url + GROUP_API_URL + '/' + group_worker_or_baseline + '/member?ignore' + ITEM_QUERY_STRING
     group = requests.get(group_url, headers=item_headers)
     group = json.loads(group.content)
@@ -586,8 +567,10 @@ if PROCESS_OP in args.operation or PROCESS_BASELINE_OP in args.operation:
               "name": "Baseline"
             }
         )
-# Permissions for annotation layers is different for NATIENS
-if PROCESS_NATIENS_OP in args.operation:
+    return group_by_name, annotations_dict, access_dict
+
+
+def process_natiens_create_annotation_layers_update_links(items):
     group_url = args.url + GROUP_API_URL + '/' + args.workergroup + '/member?ignore' + ITEM_QUERY_STRING
     group = requests.get(group_url, headers=item_headers)
     group = json.loads(group.content)
@@ -646,8 +629,10 @@ if PROCESS_NATIENS_OP in args.operation:
             VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]],
             image_link,
         ))
+    return group_by_name, annotations_dict, access_dict
 
-if PROCESS_BASELINE_OP in args.operation:
+
+def process_baseline_helper(access_dict):
     access_dict['groups'].append(
         {
           "description": "Demarcating cGVHD photos for potential inclusion in study.",
@@ -657,8 +642,9 @@ if PROCESS_BASELINE_OP in args.operation:
           "name": "Baseline"
         }
     )
-# if any kind of processing needs to be done
-if any(['process' in op for op in args.operation]):
+
+
+def process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict):
     access_url = args.url + ACCESS_API_URL + '/' + args.folder + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + ACCESS_QUERY_STRING
     access = requests.put(access_url, headers=item_headers)
 
@@ -698,8 +684,9 @@ if any(['process' in op for op in args.operation]):
                 requests.put(annotation_access_update_url + aid + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + '&public=false', headers=access_headers)
             except KeyError:
                 print('No user {0} in group'.format(annotation['name']))
-# Exports geoJSON-like files if any kind of export to be done
-if any(['export' in op for op in args.operation]):
+
+
+def export(items):
     folder = Folder().load(args.folder, force=True)
     try:
         os.mkdir(os.path.join(args.datadir, args.foldername))
@@ -776,8 +763,9 @@ if any(['export' in op for op in args.operation]):
         [tar_obj.add(json_file) for json_file in json_files]
         tar_obj.close()
         [os.remove(json_file) for json_file in json_files]
-# Output annotated PNG files using MATLAB from json annotation and input file
-if RENDER_ANNOTATIONS_OP in args.operation:
+
+
+def render_annotations():
     # json_files = get_all_files(os.path.join(args.datadir, args.foldername, 'json'))
     for record_id in os.listdir(os.path.join(args.datadir, args.foldername)):
         for session_id in os.listdir(os.path.join(args.datadir, args.foldername, record_id)):
@@ -789,8 +777,9 @@ if RENDER_ANNOTATIONS_OP in args.operation:
             cmd = 'JSON_FOLDER={json}/ BASELINE_FOLDER={imgsrc}/ ANNOTATED_IMAGES_FOLDER={annotated}/ MASKS_FOLDER={masks}/ /opt/histomicstk/HistomicsTK/histomicstk/utils/run_step1_main_read_json_mask.sh /home/ubuntu/matlab/r2021b/mcr'.format(imgsrc=imgsrc_files, json=json_files, masks=mask_files, annotated=annotated_files)
             print(cmd)
             os.system(cmd)
-# Send the outputted annotated PNGs to REDCap
-if SEND_TO_REDCAP_OP in args.operation:
+
+
+def send_to_redcap():
     fields_records_upload = {
         'token': args.redcaptoken,
         'content': 'file',
@@ -811,3 +800,58 @@ if SEND_TO_REDCAP_OP in args.operation:
                     fields_records_upload['data'] = record_id
                     req_records = requests.post(API_URL_REDCAP, data=fields_records_upload)
     # os.environ.get('GIRDER_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN')
+
+
+pilot_ids = set()
+if set(args.operation) & set([
+       PROCESS_OP, PROCESS_BASELINE_OP, PROCESS_NATIENS_OP, EXPORT_OP, EXPORT_NATIENS_OP, STATUS_OP, POLL_ANNOTATIONS_NATIENS_OP
+   ]):
+    item_url = args.url + ITEM_API_URL + '?folderId=' + args.folder + ITEM_QUERY_STRING
+    items = requests.get(item_url, headers=item_headers)
+    items = json.loads(items.content)
+    if 'message' in items:
+        sys.stderr.write(items['message'] + "\n")
+if set(args.operation) & set([INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, POLL_ANNOTATIONS_NATIENS_OP]):
+    current_token = Token().load(args.token, force=True, objectId=False)
+    user = User().load(current_token['userId'], force=True)
+
+
+# Get status of annotation layers from SkinApp
+if STATUS_OP in args.operation:
+    get_status(items)
+# Check if new annotations are available in NATIENS to process
+if POLL_ANNOTATIONS_NATIENS_OP in args.operation:
+    pilot_ids, new_last_redcap_pull = poll_annotations_natiens(user)
+    if pilot_ids:
+        get_from_redcap(user)
+        Setting().set(LAST_REDCAP_PULL_KEY, new_last_redcap_pull)
+        for pilot_id in pilot_ids:
+            ingest_folder(user, pilot_id)
+            group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(items)
+            process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict)
+# Download files from REDCap into an OS folder
+if GET_FROM_REDCAP_OP in args.operation:
+    get_from_redcap(user)
+# Ingest OS folder into Girder collection folder
+if INGEST_FOLDER_OP in args.operation:
+    ingest_folder(user)
+# creates annotation layers
+if PROCESS_OP in args.operation or PROCESS_BASELINE_OP in args.operation:
+    group_by_name, annotations_dict, access_dict = process_access_helper()
+# Permissions for annotation layers is different for NATIENS
+if PROCESS_NATIENS_OP in args.operation:
+    group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links()
+if PROCESS_BASELINE_OP in args.operation:
+    process_baseline_helper(access_dict)
+# if any kind of processing needs to be done, set permissions
+if any(['process' in op for op in args.operation]):
+    process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict)
+# Exports geoJSON-like files if any kind of export to be done
+if any(['export' in op for op in args.operation]):
+    export(items)
+# Output annotated PNG files using MATLAB from json annotation and input file
+if RENDER_ANNOTATIONS_OP in args.operation:
+    render_annotations()
+# Send the outputted annotated PNGs to REDCap
+if SEND_TO_REDCAP_OP in args.operation:
+    send_to_redcap()
