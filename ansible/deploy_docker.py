@@ -2,11 +2,11 @@
 
 import argparse
 import collections
-import docker
 import getpass
 import gzip
 import json
 import os
+import podman
 import six
 import socket
 import sys
@@ -14,9 +14,12 @@ import tarfile
 import time
 import uuid
 from distutils.version import LooseVersion
+from podman import PodmanClient
+from podman.domain.containers import Container
+from podman.domain.containers_manager import ContainersManager
 
-if not (LooseVersion('1.9') <= LooseVersion(docker.version)):
-    raise Exception('docker or docker-py must be >= version 1.9')
+# if not (LooseVersion('1.9') <= LooseVersion(podman.version)):
+#     raise Exception('podman or podman-py must be >= version 1.9')
 
 
 BaseName = 'histomicstk'
@@ -53,7 +56,7 @@ ImageList = collections.OrderedDict([
 
 def config_mounts(mounts, config):
     """
-    Add extra mounts to a docker configuration.
+    Add extra mounts to a podman configuration.
 
     :param mounts: a list of mounts to add, or None.
     :config: a config dictionary.  Mounts are added to the binds entry.
@@ -77,8 +80,8 @@ def containers_provision(**kwargs):  # noqa
     """
     Provision or reprovision the containers.
     """
-    client = docker_client()
-    ctn = get_docker_image_and_container(
+    client = podman_client()
+    ctn = get_podman_image_and_container(
         client, 'histomicstk', version=kwargs.get('pinned'))
 
     if kwargs.get('conf'):
@@ -130,7 +133,7 @@ def containers_provision(**kwargs):  # noqa
             cmd = client.exec_inspect(cmd.get('Id'))
             if not cmd['ExitCode']:
                 break
-        except (ValueError, docker.errors.APIError):
+        except (ValueError, podman.errors.APIError):
             time.sleep(1)
         print('Error provisioning (try %d)' % tries)
         tries += 1
@@ -155,20 +158,22 @@ def containers_start(port=8080, rmq='docker', mongo='docker', provision=False,
     :param provision: if True, reprovision after starting.  Otherwise, only
         provision if the histomictk container is created.
     """
-    client = docker_client()
+    client = podman_client()
     env = {
         'HOST_UID': os.popen('id -u').read().strip(),
         'HOST_GID': os.popen('id -g').read().strip(),
     }
-    sockpath = '/var/run/docker.sock'
+    sockpath = '/var/run/podman.sock'
     if os.path.exists(sockpath):
         env['HOST_DOCKER_GID'] = str(os.stat(sockpath).st_gid)
     else:
         try:
             env['HOST_DOCKER_GID'] = os.popen('getent group docker').read().split(':')[2]
+            env['HOST_PODMAN_GID'] = os.popen('getent group podman').read().split(':')[2]
         except Exception:
             pass
-    network_create(client, BaseName)
+    # @TODO: May need to add back networking for podman
+    # network_create(client, BaseName)
 
     for key in ImageList:
         func = 'container_start_' + key
@@ -186,7 +191,7 @@ def container_start_histomicstk(client, env, key='histomicstk', port=8080,
     """
     Start a histomicstk container.
 
-    :param client: docker client.
+    :param client: podman client.
     :param env: dictionary to store environment variables.
     :param key: key within the ImageList.
     :param port: default port to expose.
@@ -203,13 +208,13 @@ def container_start_histomicstk(client, env, key='histomicstk', port=8080,
     """
     image = tag_with_version(key, **kwargs)
     name = ImageList[key]['name']
-    ctn = get_docker_image_and_container(
+    ctn = get_podman_image_and_container(
         client, key, version=kwargs.get('pinned'))
     if ctn is None:
         provision = True
         config = {
             'restart_policy': {'name': 'always'},
-            'privileged': True,  # so we can run docker
+            'privileged': True,  # so we can run podman
             'links': {},
             'port_bindings': {8080: int(port)},
             'binds': [
@@ -218,7 +223,7 @@ def container_start_histomicstk(client, env, key='histomicstk', port=8080,
                 get_path(kwargs['assetstore']) + ':/opt/histomicstk/assetstore:rw',
             ],
         }
-        config['binds'].extend(docker_mounts())
+        config['binds'].extend(podman_mounts())
         config_mounts(kwargs.get('mount'), config)
         if rmq == 'docker':
             config['links'][ImageList['rmq']['name']] = 'rmq'
@@ -233,9 +238,9 @@ def container_start_histomicstk(client, env, key='histomicstk', port=8080,
             'ports': [8080],
         }
         print('Creating %s - %s' % (image, name))
-        ctn = client.create_container(
-            host_config=client.create_host_config(**config),
-            networking_config=client.create_networking_config({
+        ctn = client.containers.create(
+            extra_hosts=client.create_host_config(**config),
+            networks=client.create_networking_config({
                 BaseName: client.create_endpoint_config(aliases=[key])
             }),
             **params)
@@ -251,7 +256,7 @@ def container_start_mongodb(client, env, key='mongodb', mongo='docker',
     Start a mongo container if desired, or set an environment variable so other
     containers know where to find it.
 
-    :param client: docker client.
+    :param client: podman client.
     :param env: dictionary to store environment variables.
     :param key: key within the ImageList.
     :param mongo: 'docker' to use a docker for mongo, 'host' to use the docker
@@ -270,7 +275,7 @@ def container_start_mongodb(client, env, key='mongodb', mongo='docker',
         version = None if mongo == 'docker' else mongo
         image = tag_with_version(key, version=version, **kwargs)
         name = ImageList[key]['name']
-        ctn = get_docker_image_and_container(
+        ctn = get_podman_image_and_container(
             client, key, version=version if version else kwargs.get('pinned'))
         if ctn is None:
             config = {
@@ -288,9 +293,9 @@ def container_start_mongodb(client, env, key='mongodb', mongo='docker',
                     get_path(mongodb_path) + ':/data/db:rw',
                 ]
             print('Creating %s - %s' % (image, name))
-            ctn = client.create_container(
-                host_config=client.create_host_config(**config),
-                networking_config=client.create_networking_config({
+            ctn = client.containers.create(
+                extra_hosts=client.create_host_config(**config),
+                networks=client.create_networking_config({
                     BaseName: client.create_endpoint_config(aliases=[key])
                 }),
                 **params)
@@ -305,7 +310,7 @@ def container_start_rmq(client, env, key='rmq', rmq='docker', rmqport=None,
     Start a rabbitmq container if desired, or set an environment variable so
     other containers know where to find it.
 
-    :param client: docker client.
+    :param client: podman client.
     :param env: dictionary to store environment variables.
     :param key: key within the ImageList.
     :param rmq: 'docker' to use a docker for rabbitmq, 'host' to use the docker
@@ -316,7 +321,7 @@ def container_start_rmq(client, env, key='rmq', rmq='docker', rmqport=None,
     if rmq == 'docker':
         image = tag_with_version(key, **kwargs)
         name = ImageList[key]['name']
-        ctn = get_docker_image_and_container(
+        ctn = get_podman_image_and_container(
             client, key, version=kwargs.get('pinned'))
         if ctn is None:
             config = {
@@ -333,9 +338,9 @@ def container_start_rmq(client, env, key='rmq', rmq='docker', rmqport=None,
                 params['ports'] = [5672]
                 config['port_bindings'] = {5672: int(rmqport)}
             print('Creating %s - %s' % (image, name))
-            ctn = client.create_container(
-                host_config=client.create_host_config(**config),
-                networking_config=client.create_networking_config({
+            ctn = client.containers.create(
+                extra_hosts=client.create_host_config(**config),
+                networks=client.create_networking_config({
                     BaseName: client.create_endpoint_config(aliases=[key])
                 }),
                 **params)
@@ -353,7 +358,7 @@ def container_start_worker(client, env, key='worker', rmq='docker', **kwargs):
     """
     Start a girder_worker container.
 
-    :param client: docker client.
+    :param client: podman client.
     :param env: dictionary to store environment variables.
     :param key: key within the ImageList.
     :param rmq: 'docker' to use a docker for rabbitmq, 'host' to use the docker
@@ -362,14 +367,14 @@ def container_start_worker(client, env, key='worker', rmq='docker', **kwargs):
     """
     image = tag_with_version(key, **kwargs)
     name = ImageList[key]['name']
-    ctn = get_docker_image_and_container(
+    ctn = get_podman_image_and_container(
         client, key, version=kwargs.get('pinned'))
     if ctn is None:
         worker_tmp_root = (
             kwargs['worker_tmp_root'] if kwargs['worker_tmp_root'] else '/tmp/girder_worker')
         config = {
             'restart_policy': {'name': 'always'},
-            'privileged': True,  # so we can run docker
+            'privileged': True,  # so we can run podman
             'links': {},
             'binds': [
                 get_path(kwargs['logs']) + ':/opt/logs:rw',
@@ -377,7 +382,7 @@ def container_start_worker(client, env, key='worker', rmq='docker', **kwargs):
                 get_path(kwargs['assetstore']) + ':/opt/histomicstk/assetstore:rw',
             ]
         }
-        config['binds'].extend(docker_mounts())
+        config['binds'].extend(podman_mounts())
         config_mounts(kwargs.get('mount'), config)
         if rmq == 'docker':
             config['links'][ImageList['rmq']['name']] = 'rmq'
@@ -394,9 +399,9 @@ def container_start_worker(client, env, key='worker', rmq='docker', **kwargs):
             'environment': env.copy(),
         }
         print('Creating %s - %s' % (image, name))
-        ctn = client.create_container(
-            host_config=client.create_host_config(**config),
-            networking_config=client.create_networking_config({
+        ctn = client.containers.create(
+            extra_hosts=client.create_host_config(**config),
+            networks=client.create_networking_config({
                 BaseName: client.create_endpoint_config(aliases=[key])
             }),
             **params)
@@ -409,14 +414,14 @@ def containers_status(**kwargs):
     """
     Report the status of any containers we are responsible for.
     """
-    client = docker_client()
+    client = podman_client()
 
     keys = ImageList.keys()
     results = []
     for key in keys:
         if 'name' not in ImageList:
             continue
-        ctn = get_docker_image_and_container(client, key, False)
+        ctn = get_podman_image_and_container(client, key, False)
         entry = {
             'key': key,
             'name': ImageList[key]['name'],
@@ -438,11 +443,11 @@ def containers_stop(remove=False, **kwargs):
 
     :param remove: True to remove the containers.  False to just stop them.
     """
-    client = docker_client()
+    client = podman_client()
     keys = list(ImageList.keys())
     keys.reverse()
     for key in keys:
-        ctn = get_docker_image_and_container(client, key, False)
+        ctn = get_podman_image_and_container(client, key, False)
         if ctn:
             if ctn.get('State') != 'exited':
                 print('Stopping %s' % (key))
@@ -469,47 +474,43 @@ def convert_to_text(value):
     return value
 
 
-def docker_client():
+def podman_client():
     """
-    Return the current docker client in a manner that works with both the
-    docker-py and docker modules.
+    Return the current podman client in a manner that works with both the
+    podman-py and podman modules.
     """
-    try:
-        client = docker.from_env(version='auto', timeout=3600)
-    except TypeError:
-        # On older versions of docker-py (such as 1.9), version isn't a
-        # parameter, so try without it
-        client = docker.from_env()
+    URI = 'unix:///var/run/podman.sock'
+    client = PodmanClient(base_url=URI)
     client = client if not hasattr(client, 'api') else client.api
     return client
 
 
-def docker_mounts():
+def podman_mounts():
     """
-    Return a list of mounts needed to work with the host's docker.
+    Return a list of mounts needed to work with the host's podman.
 
     :return: a list of volumes need to work with girder.
     """
-    docker_executable = '/usr/bin/docker'
-    if not os.path.exists(docker_executable):
+    podman_executable = '/usr/bin/podman'
+    if not os.path.exists(podman_executable):
         import shutil
         if not six.PY3:
             import shutilwhich  # noqa
-        docker_executable = shutil.which('docker')
+        podman_executable = shutil.which('podman')
     mounts = [
-        docker_executable + ':/usr/bin/docker',
-        '/var/run/docker.sock:/var/run/docker.sock',
+        podman_executable + ':/usr/bin/podman',
+        '/var/run/podman.sock:/var/run/podman.sock',
     ]
     return mounts
 
 
-def get_docker_image_and_container(client, key, pullOrBuild=True, version=None):
+def get_podman_image_and_container(client, key, pullOrBuild=True, version=None):
     """
-    Given a key from the docker ImageList, check if an image is present.  If
+    Given a key from the podman ImageList, check if an image is present.  If
     not, pull it.  Check if an associated container exists and return
     information on it if so.
 
-    :param client: docker client.
+    :param client: podman client.
     :param key: key in the ImageList.
     :param pullOrBuild: if True, try to pull or build the image if it isn't
         present.  If 'pull', try to pull the image (not build), even if we
@@ -517,14 +518,17 @@ def get_docker_image_and_container(client, key, pullOrBuild=True, version=None):
     :param version: if True, use the pinned version when pulling.  If a string,
         use that version.  Otherwise, don't specify a version (which defaults
         to latest).
-    :returns: docker container or None.
+    :returns: podman container or None.
     """
+    # @TODO: Determine how to run inspect with Podman-Py
+    return None
     if pullOrBuild:
         pull = False
         image = tag_with_version(key, version)
         try:
-            client.inspect_image(image)
-        except docker.errors.NotFound:
+            import pdb; pdb.set_trace()
+            client.tag == image
+        except podman.errors.NotFound:
             pull = True
         if pull or pullOrBuild == 'pull':
             print('Pulling %s' % image)
@@ -564,9 +568,9 @@ def images_build(retry=False, names=None):
     Build necessary docker images from our dockerfiles.
 
     This is equivalent to running:
-    docker build --force-rm --tag dsarchive/girder_worker \
+    podman build --force-rm --tag dsarchive/girder_worker \
            -f Dockerfile-girder-worker .
-    docker build --force-rm --tag dsarchive/histomicstk_main \
+    podman build --force-rm --tag dsarchive/histomicstk_main \
            -f Dockerfile-histomicstk .
 
     :param retry: True to retry until success
@@ -574,7 +578,7 @@ def images_build(retry=False, names=None):
         names to build.
     """
     basepath = os.path.dirname(os.path.realpath(__file__))
-    client = docker_client()
+    client = podman_client()
 
     if names is None:
         names = ImageList.keys()
@@ -617,13 +621,13 @@ def images_build(retry=False, names=None):
 
 def images_repull(**kwargs):
     """
-    Repull all docker images.
+    Repull all podman images.
     """
-    client = docker_client()
+    client = podman_client()
     for key, image in six.iteritems(ImageList):
         if 'name' not in image and not kwargs.get('cli'):
             continue
-        get_docker_image_and_container(
+        get_podman_image_and_container(
             client, key, 'pull',  version=kwargs.get('pinned'))
 
 
@@ -631,8 +635,8 @@ def merge_configuration(client, ctn, conf, **kwargs):
     """
     Merge a Girder configuration file with the one in a running container.
 
-    :param client: the docker client.
-    :param ctn: a running docker container that contains
+    :param client: the podman client.
+    :param ctn: a running podman container that contains
         /opt/histomicstk/girder/girder/conf/girder.local.cfg
     :param conf: a path to a configuration file fragment to merge with the
         extant file.
@@ -679,7 +683,7 @@ def network_create(client, name):
     """
     Ensure a network exists with a specified name.
 
-    :param client: docker client.
+    :param client: podman client.
     :param name: name of the network.
     """
     networks = client.networks()
@@ -693,7 +697,7 @@ def network_remove(client, name):
     """
     Ensure a network with a specified name is removed.
 
-    :param client: docker client.
+    :param client: podman client.
     :param name: name of the network.
     """
     networks = client.networks()
@@ -742,21 +746,21 @@ def show_info():
     """
     print("""
 Running containers can be joined using a command like
-  docker exec -i -t histomicstk_histomicstk bash
+  podman exec -i -t histomicstk_histomicstk bash
 
-To allow docker containers to use memcached, make sure the host is running
-memcached and it is listening on the docker IP address (or listening on all
+To allow podman containers to use memcached, make sure the host is running
+memcached and it is listening on the podman IP address (or listening on all
 addresses via -l 0.0.0.0).
 
-To determine the current mongo docker version, use a command like
-  docker exec histomicstk_mongodb mongo girder --eval 'db.version()'
+To determine the current mongo podman version, use a command like
+  podman exec histomicstk_mongodb mongo girder --eval 'db.version()'
 To check if mongo can be upgrade, query the compatability mode via
-  docker exec histomicstk_mongodb mongo girder --eval \\
+  podman exec histomicstk_mongodb mongo girder --eval \\
   'db.adminCommand({getParameter: 1, featureCompatibilityVersion: 1})'
 Mongo can only be upgraded if the compatibility version is the same as the
 semi-major version.  Before upgrading, set the compatibility mode.  For
 instance, if Mongo 3.6.1 is running,
-  docker exec histomicstk_mongodb mongo girder --eval \\
+  podman exec histomicstk_mongodb mongo girder --eval \\
   'db.adminCommand({setFeatureCompatibilityVersion: "3.6"})'
 after which Mongo can be upgraded to version 4.  After upgrading, set the
 compatibility mode to the new version.
@@ -790,8 +794,8 @@ def wait_for_girder(client, ctn, maxWait=3600):
     Wait for Girder in a specific container to respond with its current
     version.
 
-    :param client: docker client.
-    :param ctn: docker container with Girder.
+    :param client: podman client.
+    :param ctn: podman container with Girder.
     :param maxWait: maximum time to wait for Girder to respond.
     """
     starttime = time.time()
@@ -823,42 +827,42 @@ def wait_for_girder(client, ctn, maxWait=3600):
 
 if __name__ == '__main__':   # noqa
     parser = argparse.ArgumentParser(
-        description='Provision and run HistomicsTK in docker containers.')
+        description='Provision and run HistomicsTK in podman containers.')
     parser.add_argument(
         'command',
         choices=['start', 'restart', 'stop', 'rm', 'remove', 'status',
                  'build', 'provision', 'info', 'pull'],
         help='Start, stop, stop and remove, restart, check the status of, or '
-             'build our own docker containers')
+             'build our own podman containers')
     parser.add_argument(
         '--assetstore', '-a', default='~/.histomicstk/assetstore',
         help='Assetstore path.')
     parser.add_argument(
         '--build', '-b', dest='build', action='store_true',
-        help='Build gider_worker and histomicstk docker images.')
+        help='Build gider_worker and histomicstk podman images.')
     parser.add_argument(
         '--cli', '-c', dest='cli', action='store_true', default=True,
-        help='Pull and install the HistomicsTK cli docker image.')
+        help='Pull and install the HistomicsTK cli podman image.')
     parser.add_argument(
         '--cli-test', dest='cli', action='store_const', const='test',
-        help='Pull and install the HistomicsTK cli docker image; test the CLI.')
+        help='Pull and install the HistomicsTK cli podman image; test the CLI.')
     parser.add_argument(
         '--no-cli', dest='cli', action='store_false',
-        help='Do not pull or install the HistomicsTK cli docker image.')
+        help='Do not pull or install the HistomicsTK cli podman image.')
     parser.add_argument(
         '--concurrency', '-j', type=int,
         help='Girder worker concurrency.')
     parser.add_argument(
         '--conf', '--cfg', '--girder-cfg',
         help='Merge a Girder configuration file with the default '
-        'configuration in the docker container during provisioning.')
+        'configuration in the podman container during provisioning.')
     parser.add_argument(
         '--db', '-d', dest='mongodb_path', default='~/.histomicstk/db',
-        help='Database path (if a Mongo docker container is used).  Use '
-             '"docker" for the default docker storage location.')
+        help='Database path (if a Mongo podman container is used).  Use '
+             '"podman" for the default docker storage location.')
     parser.add_argument(
         '--image', action='append',
-        help='Override docker image information.  The value is of the form '
+        help='Override podman image information.  The value is of the form '
         'key:tag:dockerfile.')
     parser.add_argument(
         '--info', action='store_true',
@@ -869,8 +873,8 @@ if __name__ == '__main__':   # noqa
     parser.add_argument(
         '--mongo', '-m', default='docker',
         choices=['docker', 'host', '3.4', '3.6', '4.0', 'latest'],
-        help='Either use mongo from docker or from host.  If a version is '
-        'specified, the docker with that version will be used.')
+        help='Either use mongo from podman or from host.  If a version is '
+        'specified, the podman with that version will be used.')
     parser.add_argument(
         '--mount', '--extra', '-e', action='append',
         help='Extra volumes to mount.  These are mounted internally at '
@@ -896,13 +900,13 @@ if __name__ == '__main__':   # noqa
         help='When pulling images, use the latest images.')
     parser.add_argument(
         '--provision', action='store_true',
-        help='Reprovision the Girder the docker containers are started.')
+        help='Reprovision the Girder the podman containers are started.')
     parser.add_argument(
         '--port', '-p', type=int, default=8080,
         help='Girder access port.')
     parser.add_argument(
         '--pull', action='store_true',
-        help='Repull docker images.')
+        help='Repull podman images.')
     parser.add_argument(
         '--retry', '-r', action='store_true', default=True,
         help='Retry builds and provisioning until they succeed')
@@ -914,11 +918,11 @@ if __name__ == '__main__':   # noqa
         help='Do not retry builds and provisioning until they succeed')
     parser.add_argument(
         '--rmq', default='docker',
-        help='Either use rabbitmq from docker or from host (docker, host, or '
+        help='Either use rabbitmq from podman or from host (docker, host, or '
         'IP adress or hostname of host.')
     parser.add_argument(
         '--status', '-s', action='store_true',
-        help='Report the status of relevant docker containers and images.')
+        help='Report the status of relevant podman containers and images.')
     parser.add_argument(
         '--username', '--user', const='', default=None, nargs='?',
         help='Override the Girder admin username used in provisioning.  Set '
@@ -930,7 +934,7 @@ if __name__ == '__main__':   # noqa
     parser.add_argument(
         '--worker-tmp-root', '--tmp', default='/tmp/girder_worker',
         help='The path to use for the girder_worker tmp_root.  This must be '
-        'reachable by the HistomicsTK and the girder_worker docker '
+        'reachable by the HistomicsTK and the girder_worker podman '
         'containers.  It cannot be a top-level directory.')
     parser.add_argument('--verbose', '-v', action='count', default=0)
 
