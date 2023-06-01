@@ -67,10 +67,10 @@ Additional work to the host should be requested through the Pegasus Request Mana
  
 Server Details:
 ###############
-- knk1001ld / 10.158.184.186
-- knk1001lp  / 10.100.128.170
-- knk1002ld / 10.158.188.36
-- knk1002lp / 10.100.132.69
+- knk1001ld / 10.158.184.186 (knk_app1_hosts)
+- knk1001lp  / 10.100.128.170 (knk_app1_hosts)
+- knk1002ld / 10.158.188.36 (knk_mongodb_hosts)
+- knk1002lp / 10.100.132.69 (knk_mongodb_hosts)
  
 FQDN:
 #####
