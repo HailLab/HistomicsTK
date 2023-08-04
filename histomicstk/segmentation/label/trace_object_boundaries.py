@@ -1,5 +1,4 @@
 import numpy as np
-from skimage.measure import regionprops
 
 from ._trace_object_boundaries_cython import _trace_object_boundaries_cython
 
@@ -63,6 +62,7 @@ def trace_object_boundaries(im_label,
        doi:10.3390/s16030353, 2016.
 
     """
+    from skimage.measure import regionprops
 
     if max_length is None:
         max_length = float('inf')
@@ -88,17 +88,17 @@ def trace_object_boundaries(im_label,
                 im_label[
                     min_row:max_row, min_col:max_col
                 ] == rprops[i].label
-            ).astype(np.bool)
+            ).astype(bool)
 
             mrows = max_row - min_row + 2
             mcols = max_col - min_col + 2
 
             mask = np.zeros((mrows, mcols))
-            mask[1:mrows-1, 1:mcols-1] = lmask
+            mask[1:mrows - 1, 1:mcols - 1] = lmask
 
             by, bx = _trace_object_boundaries_cython(
                 np.ascontiguousarray(
-                    mask, dtype=np.int), conn, x_start, y_start, max_length
+                    mask, dtype=int), conn, x_start, y_start, max_length
             )
 
             bx = bx + min_row - 1
@@ -118,11 +118,11 @@ def trace_object_boundaries(im_label,
         numLabels = len(rprops)
 
         if numLabels > 1:
-            raise ValueError("Number of labels should be 1 !!")
+            raise ValueError('Number of labels should be 1 !!')
 
         if (x_start is None and y_start is not None) | \
                 (x_start is not None and y_start is None):
-            raise ValueError("x_start or y_start is not defined !!")
+            raise ValueError('x_start or y_start is not defined !!')
 
         if x_start is None and y_start is None:
             x_start = -1
@@ -130,7 +130,7 @@ def trace_object_boundaries(im_label,
 
         by, bx = _trace_object_boundaries_cython(
             np.ascontiguousarray(
-                im_label, dtype=np.int), conn, x_start, y_start, max_length
+                im_label, dtype=int), conn, x_start, y_start, max_length
         )
 
         if simplify_colinear_spurs:
@@ -157,7 +157,7 @@ def _remove_thin_colinear_spurs(px, py, eps_colinear_area=0):
 
         # get coords of next triplet of points to test
         if testpos == len(px) - 1:
-            if not len(keep):
+            if not keep:
                 break
             nextpos = keep[0]
         else:

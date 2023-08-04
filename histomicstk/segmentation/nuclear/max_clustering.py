@@ -1,5 +1,4 @@
 import numpy as np
-import skimage.measure
 
 from ._max_clustering_cython import _max_clustering_cython
 
@@ -49,6 +48,7 @@ def max_clustering(im_response, im_fgnd_mask, r=10):
        Biomedical Engineering,vol.57,no.4,pp.847-52, 2010.
 
     """
+    import skimage.measure
 
     # find local maxima of all foreground pixels
     mval, mind = _max_clustering_cython(
@@ -84,7 +84,7 @@ def max_clustering(im_response, im_fgnd_mask, r=10):
     # extract object seeds
     seeds = np.array(
         [obj_props[i].weighted_centroid for i in range(num_labels)])
-    seeds = np.round(seeds).astype(np.int)
+    seeds = np.round(seeds).astype(int)
 
     # fix seeds outside the object region - happens for non-convex objects
     for i in range(num_labels):

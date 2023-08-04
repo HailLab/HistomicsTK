@@ -1,5 +1,4 @@
 import numpy as np
-import scipy as sp
 
 
 def fit_poisson_mixture(im_input, mu=None, tol=0.1):
@@ -39,6 +38,7 @@ def fit_poisson_mixture(im_input, mu=None, tol=0.1):
        Biomedical Engineering,vol.57,no.4,pp.847-52, 2010.
 
     """
+    import scipy as sp
 
     # check if intensity values in 'I' are integer type
     if not np.issubdtype(im_input.dtype, np.integer):
@@ -46,14 +46,14 @@ def fit_poisson_mixture(im_input, mu=None, tol=0.1):
                         ' type')
 
     # generate a small number for conditioning calculations
-    Small = np.finfo(np.float).eps
+    Small = np.finfo(float).eps
 
     # generate histogram of inputs - assume range is 0, 255 (type uint8)
     H = np.histogram(np.ravel(im_input), bins=256, range=(0, 256))
     X = H[1]
     H = H[0].astype('float') / H[0].sum()
 
-    if(mu is None):
+    if mu is None:
         mu = np.dot(X[0: -1], H)
 
     # calculate cumulative sum along histogram counts
@@ -63,10 +63,10 @@ def fit_poisson_mixture(im_input, mu=None, tol=0.1):
     # determine cost at each possible threshold
     P0 = Cumulative
     P0[P0 <= 0] = Small
-    P1 = 1-Cumulative
+    P1 = 1 - Cumulative
     P1[P1 <= 0] = Small
     Mu0 = np.divide(CumProd, P0) + Small
-    Mu1 = np.divide(CumProd[-1]-CumProd, P1) + Small
+    Mu1 = np.divide(CumProd[-1] - CumProd, P1) + Small
     Cost = mu - np.multiply(P0, np.log(P0) + np.multiply(Mu0, np.log(Mu0))) - \
         np.multiply(P1, np.log(P1) + np.multiply(Mu1, np.log(Mu1)))
 

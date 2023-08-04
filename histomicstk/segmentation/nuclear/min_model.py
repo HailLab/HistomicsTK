@@ -1,10 +1,6 @@
-from histomicstk.segmentation import label
 import numpy as np
-import scipy.ndimage.filters as ft
-import scipy.ndimage.measurements as ms
-import scipy.ndimage.morphology as mp
-import skimage.morphology as mo
-from skimage.draw import polygon
+
+from histomicstk.segmentation import label
 
 
 def min_model(I, Delta=0.3, MaxLength=255, Compaction=3,
@@ -25,7 +21,7 @@ def min_model(I, Delta=0.3, MaxLength=255, Compaction=3,
     MaxLength : int
         Maximum allowable contour length. Default value = 255.
     Compaction : int
-        Factor used in compacting objects to remove thin spurs. Refered to as
+        Factor used in compacting objects to remove thin spurs. Referred to as
         'd' in the paper. Default value = 3.
     MinArea : int
         Minimum area of objects to analyze. Default value = 100.
@@ -98,7 +94,7 @@ def min_model(I, Delta=0.3, MaxLength=255, Compaction=3,
     return Label
 
 
-def seed_contours(I, Delta=0.3):
+def seed_contours(I, Delta=0.3):  # noqa
     """Detects seed pixels for contour tracing by finding max-gradient points
     between local minima and maxima in an intensity image.
 
@@ -166,15 +162,15 @@ def seed_contours(I, Delta=0.3):
                   (I[i, 1:-1] <= I[i, 2:])).nonzero()[0] + 1
 
         # identify transitions - start of intervals of monotonic non-increase
-        dI = np.sign(I[i, 1:] - I[i, 0:-1])
+        dI = np.sign(I[i, 1:].astype(float) - I[i, 0:-1].astype(float))
         dI = np.hstack((dI, dI[-1]))
         Transitions = np.nonzero(dI == 1)[0]
-        Transitions = np.hstack((Transitions, I.shape[1]-1))
+        Transitions = np.hstack((Transitions, I.shape[1] - 1))
 
         # define min/max neighbor pairs
         MinPair = []
         MaxPair = []
-        if(Minima.size > 0) & (Maxima.size > 0):
+        if (Minima.size > 0) and (Maxima.size > 0):
 
             # initialize initial positions of min/max & transition indices
             MinPos = 0
@@ -190,8 +186,8 @@ def seed_contours(I, Delta=0.3):
                     MinPos = Index[0]
 
                     # increment transition point to beyond current maxima
-                    while ((TranPos < Transitions.size) &
-                           (Transitions[TranPos] < Maxima[MaxPos])):
+                    while (TranPos < Transitions.size) & \
+                            (Transitions[TranPos] <= Maxima[MaxPos]):
                         TranPos += 1
 
                     # add minima to current maxima until transition is reached
@@ -199,7 +195,7 @@ def seed_contours(I, Delta=0.3):
                         MinPair.append(Minima[MinPos])
                         MaxPair.append(Maxima[MaxPos])
                         MinPos += 1
-                        if(MinPos == Minima.size):
+                        if MinPos == Minima.size:
                             break
 
                     # increment maxima
@@ -208,37 +204,45 @@ def seed_contours(I, Delta=0.3):
                 else:  # no minima beyond current maxima - quit
                     break
 
-        # convert maxima/minima pairs to numpy arrays
-        Maxima = np.asarray(MaxPair)
-        Minima = np.asarray(MinPair)
+            # convert maxima/minima pairs to numpy arrays
+            Maxima = np.asarray(MaxPair)
+            Minima = np.asarray(MinPair)
 
-        # remove pairs that do not have at least one pixel between them
-        Close = ((Minima - Maxima) < 2).nonzero()
-        Maxima = np.delete(Maxima, Close)
-        Minima = np.delete(Minima, Close)
+            # remove pairs that do not have at least one pixel between them
+            Close = ((Minima - Maxima) < 2).nonzero()
+            Maxima = np.delete(Maxima, Close)
+            Minima = np.delete(Minima, Close)
 
-        # remove pairs that do not have sufficient intensity transitions
-        if(Delta is not None):
-            if np.issubdtype(I.dtype, np.integer):
-                Range = Delta * 255.0
-            elif np.issubdtype(I.dtype, np.float):
-                Range = Delta * 1.0
-            Shallow = ((I[i, Maxima] - I[i, Minima] < Range)).nonzero()
-            Maxima = np.delete(Maxima, Shallow)
-            Minima = np.delete(Minima, Shallow)
+            # skip to next row if no min/max pairs exist after location filter
+            if (Minima.size == 0) | (Maxima.size == 0):
+                continue
 
-        # identify max gradient locations within paired maxima/minima
-        MinGrad = np.zeros(Maxima.shape, dtype=int)
-        for j in np.arange(Maxima.size):
-            MinGrad[j] = np.argmin(Gradient[Maxima[j]+1:Minima[j]]) + \
-                Maxima[j]+1
+            # remove pairs that do not have sufficient intensity transitions
+            if Delta is not None:
+                if np.issubdtype(I.dtype, np.integer):
+                    Range = Delta * 255.0
+                elif np.issubdtype(I.dtype, float):
+                    Range = Delta * 1.0
+                Shallow = (I[i, Maxima] - I[i, Minima] < Range).nonzero()
+                Maxima = np.delete(Maxima, Shallow)
+                Minima = np.delete(Minima, Shallow)
 
-        # capture min, max values and add to list with seed coordinates
-        if(Maxima.size > 0):
-            X.extend(MinGrad)
-            Y.extend(i * np.ones((Maxima.size)))
-            Min.extend(I[i, Minima])
-            Max.extend(I[i, MinGrad])
+            # skip to next row if no min/max pairs exist after intensity filter
+            if (Minima.size == 0) | (Maxima.size == 0):
+                continue
+
+            # identify max gradient locations within paired maxima/minima
+            MinGrad = np.zeros(Maxima.shape, dtype=int)
+            for j in np.arange(Maxima.size):
+                MinGrad[j] = np.argmin(Gradient[Maxima[j] + 1:Minima[j]]) + \
+                    Maxima[j] + 1
+
+            # capture min, max values and add to list with seed coordinates
+            if Maxima.size > 0:
+                X.extend(MinGrad)
+                Y.extend(i * np.ones(Maxima.size))
+                Min.extend(I[i, Minima])
+                Max.extend(I[i, MinGrad])
 
     # convert outputs from lists to numpy arrays
     X = np.array(X, dtype=np.uint)
@@ -307,21 +311,21 @@ def trace_contours(I, X, Y, Min, Max, MaxLength=255):
     for i in np.arange(X.size):
 
         # capture window surrounding (X[i], Y[i])
-        W = I[max(0, Y[i]-np.ceil(MaxLength/2.0)):
-              min(I.shape[0]+1, Y[i]+np.ceil(MaxLength/2.0)+1),
-              max(0, X[i]-np.ceil(MaxLength/2.0)):
-              min(I.shape[1]+1, X[i]+np.ceil(MaxLength/2.0))+1]
+        W = I[max(0, Y[i] - np.ceil(MaxLength / 2.0)):
+              min(I.shape[0] + 1, Y[i] + np.ceil(MaxLength / 2.0) + 1),
+              max(0, X[i] - np.ceil(MaxLength / 2.0)):
+              min(I.shape[1] + 1, X[i] + np.ceil(MaxLength / 2.0)) + 1]
 
         # binary threshold corresponding to seed pixel 'i'
         W = (W <= Max[i]) & (W >= Min[i])
 
         # embed with center pixel in middle of padded window
-        Embed = np.zeros((W.shape[0]+2, W.shape[1]+2), dtype=np.bool)
+        Embed = np.zeros((W.shape[0] + 2, W.shape[1] + 2), dtype=bool)
         Embed[1:-1, 1:-1] = W
 
         # calculate location of (X[i], Y[i]) in 'Embed'
-        pX = X[i] - max(0, X[i]-np.ceil(MaxLength/2.0)) + 1
-        pY = Y[i] - max(0, Y[i]-np.ceil(MaxLength/2.0)) + 1
+        pX = X[i] - max(0, X[i] - np.ceil(MaxLength / 2.0)) + 1
+        pY = Y[i] - max(0, Y[i] - np.ceil(MaxLength / 2.0)) + 1
 
         # trace boundary, check stopping condition, append to list of contours
         cX, cY = label.trace_object_boundaries(Embed, conn=4,
@@ -332,10 +336,10 @@ def trace_contours(I, X, Y, Min, Max, MaxLength=255):
 
             # add window offset to contour coordinates
             cX[0] = [
-                x + max(0, X[i]-np.ceil(MaxLength/2.0)) - 1 for x in cX[0]
+                x + max(0, X[i] - np.ceil(MaxLength / 2.0)) - 1 for x in cX[0]
             ]
             cY[0] = [
-                y + max(0, Y[i]-np.ceil(MaxLength/2.0)) - 1 for y in cY[0]
+                y + max(0, Y[i] - np.ceil(MaxLength / 2.0)) - 1 for y in cY[0]
             ]
 
             # append to list of candidate contours
@@ -383,15 +387,16 @@ def score_contours(I, cXs, cYs):
     Reports,vol.2,no.503, doi:10.1038/srep00503, 2012.
 
     """
+    import scipy.ndimage as ndi
 
     # initialize output
-    Scores = np.zeros((len(cXs)))
+    Scores = np.zeros(len(cXs))
 
     # generate Sobel filter response from input intensity image 'I'
-    Gradients = ft.sobel(I, mode='mirror')
+    Gradients = ndi.sobel(I, mode='mirror')
 
     # generate local max in 3 x 3 window of Gradients
-    Maxima = ft.maximum_filter(Gradients, size=3, mode='mirror')
+    Maxima = ndi.maximum_filter(Gradients, size=3, mode='mirror')
 
     # generate score for each contour
     for i in np.arange(len(cXs)):
@@ -433,7 +438,7 @@ def label_contour(Shape, cXs, cYs, Scores):
 
     Notes
     -----
-    Can produce a large number of thin "halo" objects surrouding the objects
+    Can produce a large number of thin "halo" objects surrounding the objects
     with higher scores. These can be removed by filtering object width in the
     resulting label image.
 
@@ -453,6 +458,7 @@ def label_contour(Shape, cXs, cYs, Scores):
     Reports,vol.2,no.503, doi:10.1038/srep00503, 2012.
 
     """
+    from skimage.draw import polygon
 
     # initialize label image
     Label = np.zeros(Shape, dtype=np.dtype('uint32'))
@@ -470,10 +476,10 @@ def label_contour(Shape, cXs, cYs, Scores):
         yMax = np.max(cYs[Order[i]])
 
         # extract portion of existing label image
-        T = Label[yMin:yMax+1, xMin:xMax+1]
+        T = Label[yMin:yMax + 1, xMin:xMax + 1]
 
         # generate mask for object 'Order[i]' from polygon
-        Mask = polygon(cYs[Order[i]]-yMin, cXs[Order[i]]-xMin, T.shape)
+        Mask = polygon(cYs[Order[i]] - yMin, cXs[Order[i]] - xMin, T.shape)
 
         # replace non-zero areas with value 'i'
         T[Mask] = i
@@ -499,7 +505,7 @@ def split_concavities(Label, MinDepth=4, MinConcavity=np.inf):  # noqa: C901
 
     Notes
     -----
-    Can produce a large number of thin "halo" objects surrouding the objects
+    Can produce a large number of thin "halo" objects surrounding the objects
     with higher scores. These can be removed by filtering object width in the
     resulting label image.
 
@@ -519,18 +525,20 @@ def split_concavities(Label, MinDepth=4, MinConcavity=np.inf):  # noqa: C901
     Reports,vol.2,no.503, doi:10.1038/srep00503, 2012.
 
     """
+    import scipy
+    import scipy.ndimage as ndi
+    import skimage.morphology as mo
 
     # use shape profiles to split objects with concavities
-
     # copy input label image
     Convex = Label.copy()
 
     # condense label image
-    if np.unique(Convex).size-1 != Convex.max():
+    if np.unique(Convex).size - 1 != Convex.max():
         Convex = label.condense(Convex)
 
     # get locations of objects in initial image
-    Locations = ms.find_objects(Convex)
+    Locations = scipy.ndimage.find_objects(Convex)
 
     # initialize number of labeled objects and record initial count
     Total = Label.max()
@@ -542,13 +550,13 @@ def split_concavities(Label, MinDepth=4, MinConcavity=np.inf):  # noqa: C901
 
         # get object window from label image
         if i < len(Locations):
-            W = Convex[Locations[i-1]]
+            W = Convex[Locations[i - 1]]
         else:
-            Locations = ms.find_objects(Convex)
-            W = Convex[Locations[i-1]]
+            Locations = scipy.ndimage.find_objects(Convex)
+            W = Convex[Locations[i - 1]]
 
         # embed masked object in padded boolean array
-        Mask = np.zeros((W.shape[0]+2, W.shape[1]+2), dtype=np.bool)
+        Mask = np.zeros((W.shape[0] + 2, W.shape[1] + 2), dtype=bool)
         Mask[1:-1, 1:-1] = W == i
 
         # generate convex hull of object
@@ -560,37 +568,37 @@ def split_concavities(Label, MinDepth=4, MinConcavity=np.inf):  # noqa: C901
         Y = np.array(Y[0][:-1], dtype=np.uint32)
 
         # calculate distance transform of object boundary pixels to convex hull
-        Distance = mp.distance_transform_edt(Hull)
+        Distance = ndi.distance_transform_edt(Hull)
         D = Distance[Y, X] - 1
 
         # generate linear index of positions
         Linear = np.arange(X.size)
 
         # rotate boundary counter-clockwise until start position is on hull
-        while(D[0] != 0):
+        while D[0] != 0:
             X = np.roll(X, -1)
             Y = np.roll(Y, -1)
             D = np.roll(D, -1)
             Linear = np.roll(Linear, -1)
 
         # find runs of concave pixels with length > 1
-        Concave = (D > 0).astype(np.int)
+        Concave = (D > 0).astype(int)
         Start = np.where((Concave[1:] - Concave[0:-1]) == 1)[0]
         Stop = np.where((Concave[1:] - Concave[0:-1]) == -1)[0] + 1
-        if(Stop.size == Start.size - 1):
+        if Stop.size == Start.size - 1:
             Stop = np.append(Stop, 0)
 
         # extract depth profiles, indices, distances for each run
         iX = []
         iY = []
         Depths = []
-        Length = np.zeros((Start.size))
-        MaxDepth = np.zeros((Start.size))
+        Length = np.zeros(Start.size)
+        MaxDepth = np.zeros(Start.size)
         for j in np.arange(Start.size):
-            if(Start[j] < Stop[j]):
-                iX.append(X[Start[j]:Stop[j]+1])
-                iY.append(Y[Start[j]:Stop[j]+1])
-                Depths.append(D[Start[j]:Stop[j]+1])
+            if Start[j] < Stop[j]:
+                iX.append(X[Start[j]:Stop[j] + 1])
+                iY.append(Y[Start[j]:Stop[j] + 1])
+                Depths.append(D[Start[j]:Stop[j] + 1])
             else:  # run terminates at beginning of sequence
                 iX.append(np.append(X[Start[j]:], X[0]))
                 iY.append(np.append(Y[Start[j]:], Y[0]))
@@ -602,8 +610,8 @@ def split_concavities(Label, MinDepth=4, MinConcavity=np.inf):  # noqa: C901
         Keep = np.where((Length > 1) & (MaxDepth >= MinDepth))[0]
         Start = Start[Keep]
         Stop = Stop[Keep]
-        iX = [iX[Ind].astype(dtype=np.float) for Ind in Keep]
-        iY = [iY[Ind].astype(dtype=np.float) for Ind in Keep]
+        iX = [iX[Ind].astype(dtype=float) for Ind in Keep]
+        iY = [iY[Ind].astype(dtype=float) for Ind in Keep]
         Depths = [Depths[Ind] for Ind in Keep]
 
         # attempt cutting if more than 1 sequence is found
@@ -622,7 +630,7 @@ def split_concavities(Label, MinDepth=4, MinConcavity=np.inf):  # noqa: C901
                 # get list of 'j' candidates that pass depth threshold
                 jCandidates = np.where(Depths[j] >= MinDepth)[0]
 
-                for k in np.arange(j+1, Start.size):
+                for k in np.arange(j + 1, Start.size):
 
                     # get list of 'k' candidates that pass depth threshold
                     kCandidates = np.where(Depths[k] >= MinDepth)[0]
@@ -676,13 +684,13 @@ def split_concavities(Label, MinDepth=4, MinConcavity=np.inf):  # noqa: C901
 
                 # perform cut
                 SplitMask = cut(Mask,
-                                Xcut1[ArgMin[0], ArgMin[1]].astype(np.float),
-                                Ycut1[ArgMin[0], ArgMin[1]].astype(np.float),
-                                Xcut2[ArgMin[0], ArgMin[1]].astype(np.float),
-                                Ycut2[ArgMin[0], ArgMin[1]].astype(np.float))
+                                Xcut1[ArgMin[0], ArgMin[1]].astype(float),
+                                Ycut1[ArgMin[0], ArgMin[1]].astype(float),
+                                Xcut2[ArgMin[0], ArgMin[1]].astype(float),
+                                Ycut2[ArgMin[0], ArgMin[1]].astype(float))
 
                 # re-label cut image
-                SplitLabel = ms.label(SplitMask)[0]
+                SplitLabel = scipy.ndimage.label(SplitMask)[0]
 
                 # increment object count, and label new object at end
                 SplitLabel[SplitLabel > 1] = Total + 1
@@ -742,8 +750,8 @@ def angle_score(ax1, ay1, bx1, by1, ax2, ay2, bx2, by2, cx1, cy1, cx2, cy2):
     kCutAlpha = np.arctan2(cy1 - cy2, cx2 - cx1)
 
     # calculate angle score
-    Score = (np.abs(np.pi/2 - (jCutAlpha - jHullAlpha)) +
-             np.abs(np.pi/2 - (kCutAlpha - kHullAlpha))) / np.pi
+    Score = (np.abs(np.pi / 2 - (jCutAlpha - jHullAlpha)) +
+             np.abs(np.pi / 2 - (kCutAlpha - kHullAlpha))) / np.pi
 
     return Score
 
@@ -803,16 +811,16 @@ def cut(Mask, x1, y1, x2, y2):
     Cut = Mask.copy()
 
     # calculate angle of line
-    if(x1 < x2):
-        theta = np.arctan2(y2-y1, x2-x1)
+    if x1 < x2:
+        theta = np.arctan2(y2 - y1, x2 - x1)
     else:
-        theta = np.arctan2(y1-y2, x1-x2)
+        theta = np.arctan2(y1 - y2, x1 - x2)
 
     # define line length
-    length = ((x1-x2)**2 + (y1-y2)**2)**0.5
+    length = ((x1 - x2)**2 + (y1 - y2)**2)**0.5
 
     # define points along x-axis
-    x = np.arange(-1, length+1, 0.1)
+    x = np.arange(-1, length + 1, 0.1)
     y = np.zeros(x.shape)
 
     # rotate
@@ -821,7 +829,7 @@ def cut(Mask, x1, y1, x2, y2):
     rotated = R.dot(np.vstack((x, y)))
 
     # translate
-    if(x1 < x2):
+    if x1 < x2:
         xr = rotated[0, :] + x1
         yr = rotated[1, :] + y1
     else:

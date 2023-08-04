@@ -1,6 +1,18 @@
+import importlib
 import os
 
 from setuptools import find_packages, setup
+
+try:
+    from skbuild import setup
+except ImportError:
+    sys.stderr.write("""scikit-build is required to build from source or run tox.
+Please run:
+  python -m pip install scikit-build
+""")
+    # from setuptools import setup
+    sys.exit(1)
+
 
 with open('README.rst') as readme_file:
     readme = readme_file.read()
@@ -24,48 +36,71 @@ def prerelease_local_scheme(version):
 
 
 setup(
-    name='histomicsui',
-    use_scm_version={'local_scheme': prerelease_local_scheme, 'fallback_version': '0.0.0'},
-    setup_requires=['setuptools-scm'],
-    description='Organize, visualize, and analyze histology images.',
-    author='Kitware, Inc.',
-    author_email='kitware@kitware.com',
-    #classifiers=[
-    #    'Development Status :: 5 - Production/Stable',
-    #    'License :: OSI Approved :: Apache Software License',
-    #    'Natural Language :: English',
-    #    'Programming Language :: Python :: 3',
-    #    'Programming Language :: Python :: 3.6',
-    #    'Programming Language :: Python :: 3.7',
-    #    'Programming Language :: Python :: 3.8',
-    #    'Programming Language :: Python :: 3.9',
-    #    'Programming Language :: Python :: 3.10',
-    #    'Programming Language :: Python :: 3.11',
-    #],
-    install_requires=[
-        'girder-large-image-annotation>=1.23.0',
-        'girder-slicer-cli-web>=1.2.3',
-        'cachetools',
-        'importlib-metadata<5 ; python_version < "3.8"',
-        'orjson',
-    ],
-    extras_require={
-        'analysis': [
-            'girder-slicer-cli-web[girder]>=1.2.3',
-        ],
-    },
-    license='Apache Software License 2.0',
+    name='histomicstk',
+    use_scm_version={'local_scheme': prerelease_local_scheme,
+                     'fallback_version': '0.0.0'},
+    description='A Python toolkit for Histopathology Image Analysis',
     long_description=readme,
     long_description_content_type='text/x-rst',
-    include_package_data=True,
-    keywords='girder-plugin, histomicstk',
-    packages=find_packages(exclude=['test', 'test.*']),
-    url='git+https://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@github.com/HailLab/HistomicsTK',
-    zip_safe=False,
-    # python_requires='>=3.6',
-    entry_points={
-        'girder.plugin': [
-            'histomicstk = histomicstk:GirderPlugin'
-        ]
+    author='Kitware, Inc.',
+    author_email='developers@digitalslidearchive.net',
+    url='https://github.com/DigitalSlideArchive/HistomicsTK',
+    packages=find_packages(exclude=['tests', '*_test']),
+    package_dir={
+        'histomicstk': 'histomicstk',
     },
+    include_package_data=True,
+    install_requires=[
+        'girder-client',
+        # version
+        'importlib-metadata<5 ; python_version < "3.8"',
+        # scientific packages
+        'nimfa',
+        'numpy',
+        'scipy',
+        'Pillow',
+        'pandas',
+        'scikit-image',
+        'scikit-learn',
+        'imageio',
+        'shapely[vectorized]',
+        'sqlalchemy ; python_version >= "3.8"',
+        'sqlalchemy<2 ; python_version < "3.8"',
+        'matplotlib',
+        'pyvips',
+        # dask packages
+        'dask[dataframe]',
+        'distributed',
+        # large image; for non-linux systems only install the PIL tile source
+        # by default.
+        'large-image[sources];sys.platform=="linux"',
+        'large-image[sources];sys.platform=="linux2"',
+        'large-image[pil];sys.platform!="linux" and sys.platform!="linux2"',
+        'girder-slicer-cli-web',
+        # cli
+        'ctk-cli',
+    ] + (
+        # Only require opencv if it isn't installed.  This can allow alternate
+        # forms to be in the environment (such as a headed form) without
+        # causing conflicts
+        [
+            'opencv-python-headless',
+        ] if not importlib.util.find_spec('cv2') else []
+    ),
+    license='Apache Software License 2.0',
+    keywords='histomicstk',
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'License :: OSI Approved :: Apache Software License',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Topic :: Scientific/Engineering :: Artificial Intelligence',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+    ],
+    zip_safe=False,
+    python_requires='>=3.7',
 )

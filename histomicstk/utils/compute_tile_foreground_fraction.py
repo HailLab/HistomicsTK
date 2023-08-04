@@ -1,13 +1,10 @@
-import numpy as np
-import dask
-import dask.distributed
-
 import large_image
+import numpy as np
 
 
 def compute_tile_foreground_fraction(slide_path, im_fgnd_mask_lres,
                                      fgnd_seg_scale, it_kwargs,
-                                     tile_position=None):
+                                     tile_position=None, style=None):
     """
     Computes the fraction of foreground of a single tile or
     all tiles in a whole slide image given the binary foreground
@@ -40,11 +37,13 @@ def compute_tile_foreground_fraction(slide_path, im_fgnd_mask_lres,
         all tiles will be returned.
 
     """
+    import dask
+    import dask.distributed
 
     if tile_position is None:
 
         # get slide tile source
-        ts = large_image.getTileSource(slide_path)
+        ts = large_image.getTileSource(slide_path, style=style)
 
         num_tiles = ts.getSingleTile(**it_kwargs)['iterator_range']['position']
 
@@ -76,7 +75,7 @@ def compute_tile_foreground_fraction(slide_path, im_fgnd_mask_lres,
 
         tile_fgnd_frac = _compute_tile_foreground_fraction_single(
             slide_path, im_fgnd_mask_lres, fgnd_seg_scale,
-            it_kwargs, tile_position
+            it_kwargs, tile_position, style=style
         )
 
     else:
@@ -89,10 +88,10 @@ def compute_tile_foreground_fraction(slide_path, im_fgnd_mask_lres,
 
 def _compute_tile_foreground_fraction_single(slide_path, im_fgnd_mask_lres,
                                              fgnd_seg_scale, it_kwargs,
-                                             tile_position):
+                                             tile_position, style=None):
 
     # get slide tile source
-    ts = large_image.getTileSource(slide_path)
+    ts = large_image.getTileSource(slide_path, style=style)
 
     # get requested tile
     tile = ts.getSingleTile(tile_position=tile_position,
@@ -110,10 +109,10 @@ def _compute_tile_foreground_fraction_single(slide_path, im_fgnd_mask_lres,
                                      targetScale=fgnd_seg_scale,
                                      targetUnits='mag_pixels')
 
-    top = np.int(rgn_lres['top'])
-    bottom = np.int(rgn_lres['bottom'])
-    left = np.int(rgn_lres['left'])
-    right = np.int(rgn_lres['right'])
+    top = int(rgn_lres['top'])
+    bottom = int(rgn_lres['bottom'])
+    left = int(rgn_lres['left'])
+    right = int(rgn_lres['right'])
 
     im_tile_fgnd_mask_lres = im_fgnd_mask_lres[top:bottom, left:right]
 

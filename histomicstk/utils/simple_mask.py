@@ -1,9 +1,4 @@
 import numpy as np
-from skimage import color
-from sklearn.neighbors.kde import KernelDensity
-from scipy.stats import norm
-from scipy.optimize import fmin_slsqp
-from scipy import signal
 
 
 def simple_mask(im_rgb, bandwidth=2, bgnd_std=2.5, tissue_std=30,
@@ -55,11 +50,16 @@ def simple_mask(im_rgb, bandwidth=2, bgnd_std=2.5, tissue_std=30,
     histomicstk.utils.sample_pixels
 
     """
+    from scipy import signal
+    from scipy.optimize import fmin_slsqp
+    from scipy.stats import norm
+    from skimage import color
+    from sklearn.neighbors import KernelDensity
 
     # convert image to grayscale, flatten and sample
     im_rgb = 255 * color.rgb2gray(im_rgb)
     im_rgb = im_rgb.astype(np.uint8)
-    num_samples = np.int(fraction * im_rgb.size)
+    num_samples = int(fraction * im_rgb.size)
     sI = np.random.choice(im_rgb.flatten(), num_samples)[:, np.newaxis]
 
     # kernel-density smoothed histogram
@@ -79,7 +79,7 @@ def simple_mask(im_rgb, bandwidth=2, bgnd_std=2.5, tissue_std=30,
     if len(Peaks) > 1:
         TissuePeak = Peaks[yHist[Peaks[1:]].argmax() + 1]
     else:  # no peak found - take initial guess at 2/3 distance from origin
-        TissuePeak = np.asscalar(xHist[int(np.round(0.66*xHist.size))])
+        TissuePeak = xHist[int(np.round(0.66 * xHist.size))].item()
 
     # analyze background peak to estimate variance parameter via FWHM
     BGScale = estimate_variance(xHist, yHist, BGPeak)
@@ -93,6 +93,11 @@ def simple_mask(im_rgb, bandwidth=2, bgnd_std=2.5, tissue_std=30,
 
     # solve for mixing parameter
     Mix = yHist[BGPeak] * (BGScale * (2 * np.pi)**0.5)
+    try:
+        if len(Mix) == 1:
+            Mix = Mix[0]
+    except Exception:
+        pass
 
     # flatten kernel-smoothed histogram and corresponding x values for
     # optimization
@@ -181,6 +186,7 @@ def estimate_variance(x, y, peak):
     """
 
     # analyze peak to estimate variance parameter via FWHM
+    peak = int(peak)
     Left = peak
     while y[Left] > y[peak] / 2 and Left >= 0:
         Left -= 1
@@ -211,5 +217,9 @@ def estimate_variance(x, y, peak):
             LeftSlope = y[Left + 1] - y[Left] / (x[Left + 1] - x[Left])
             Left = (y[peak] / 2 - y[Left]) / LeftSlope + x[Left]
             scale = 2 * (x[peak] - Left) / 2.355
-
+    try:
+        if len(scale) == 1:
+            scale = scale[0]
+    except Exception:
+        pass
     return scale

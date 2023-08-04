@@ -1,25 +1,23 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Fri Oct 18 02:31:32 2019.
 
 @author: mtageld
 """
 import numpy as np
-from histomicstk.preprocessing.color_deconvolution.stain_color_map import (
-    stain_color_map)
+
+from histomicstk.preprocessing.color_deconvolution import \
+    complement_stain_matrix
+from histomicstk.preprocessing.color_deconvolution.color_convolution import \
+    color_convolution
 from histomicstk.preprocessing.color_deconvolution.color_deconvolution import (
-    stain_unmixing_routine, color_deconvolution_routine)
-from histomicstk.preprocessing.color_deconvolution.color_convolution import (
-    color_convolution)
-from histomicstk.preprocessing.color_deconvolution import (
-    complement_stain_matrix)
+    color_deconvolution_routine, stain_unmixing_routine)
+from histomicstk.preprocessing.color_deconvolution.stain_color_map import \
+    stain_color_map
 
 
 def deconvolution_based_normalization(
         im_src, W_source=None, W_target=None, im_target=None,
-        stains=['hematoxylin', 'eosin'], mask_out=None,
-        stain_unmixing_routine_params={}):
+        stains=None, mask_out=None, stain_unmixing_routine_params=None):
     """Perform color normalization using color deconvolution to transform the.
 
     ... color characteristics of an image to a desired standard.
@@ -94,9 +92,13 @@ def deconvolution_based_normalization(
            analysis.  Computerized Medical Imaging and Graphics, 46, 20-29.
 
     """
+    stains = ['hematoxylin', 'eosin'] if stains is None else stains
+    stain_unmixing_routine_params = (
+        {} if stain_unmixing_routine_params is None else
+        stain_unmixing_routine_params)
     for k in ['W_source', 'mask_out']:
         assert k not in stain_unmixing_routine_params.keys(), \
-            "%s must be provided as a separate parameter." % k
+            '%s must be provided as a separate parameter.' % k
 
     # find stains matrix from source image
     stain_unmixing_routine_params['stains'] = stains

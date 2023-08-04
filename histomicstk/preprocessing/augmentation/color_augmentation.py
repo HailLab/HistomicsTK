@@ -1,27 +1,24 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Sat Oct 19 18:09:17 2019.
 
 @author: mtageld
 """
 import numpy as np
-from histomicstk.utils import (
-    convert_image_to_matrix, convert_matrix_to_image)
-from histomicstk.preprocessing.color_conversion import (
-    rgb_to_sda, sda_to_rgb)
-from histomicstk.preprocessing.color_deconvolution import (
-    color_deconvolution_routine)
+
+from histomicstk.preprocessing.color_conversion import rgb_to_sda, sda_to_rgb
+from histomicstk.preprocessing.color_deconvolution import \
+    color_deconvolution_routine
+from histomicstk.utils import convert_image_to_matrix, convert_matrix_to_image
 
 
 def perturb_stain_concentration(
         StainsFloat, W, I_0=None, mask_out=None, sigma1=0.9, sigma2=0.9):
-    u"""Perturb stain concentrations in SDA space and return augmented image.
+    """Perturb stain concentrations in SDA space and return augmented image.
 
     This is an implementation of the method described in Tellez et
     al, 2018 (see below). The SDA matrix is perturbed by multiplying each
     channel independently by a value chosen from a random uniform distribution
-    in the range [1 - sigma1, 1 + sigma1], then add a value chosed from another
+    in the range [1 - sigma1, 1 + sigma1], then add a value chosen from another
     random uniform distribution in the range [-sigma2, sigma2].
 
     Parameters
@@ -109,11 +106,7 @@ def perturb_stain_concentration(
 
 
 def rgb_perturb_stain_concentration(
-        im_rgb,
-        stain_unmixing_routine_params={
-            'stains': ['hematoxylin', 'eosin'],
-            'stain_unmixing_method': 'macenko_pca',
-        }, **kwargs):
+        im_rgb, stain_unmixing_routine_params=None, **kwargs):
     """Apply wrapper that calls perturb_stain_concentration() on RGB.
 
     Parameters
@@ -133,6 +126,11 @@ def rgb_perturb_stain_concentration(
         Color augmented RGB image (m x n x 3)
 
     """
+    stain_unmixing_routine_params = {
+        'stains': ['hematoxylin', 'eosin'],
+        'stain_unmixing_method': 'macenko_pca',
+    } if stain_unmixing_routine_params is None else stain_unmixing_routine_params
+
     _, StainsFloat, W_source = color_deconvolution_routine(
         im_rgb, W_source=None, **stain_unmixing_routine_params)
 

@@ -1,17 +1,22 @@
-import os
-import json
 import colorsys
+import json
+import os
+from pathlib import Path
 
 import numpy as np
-import pandas as pd
-from sklearn.externals import joblib
-import dask.dataframe as dd
 
-from histomicstk.cli.utils import CLIArgumentParser
-
-from histomicstk.cli import utils as cli_utils
+try:
+    import joblib
+except ImportError:
+    # Versions of scikit-learn before 0.21 had joblib internally
+    from sklearn.externals import joblib
 
 import logging
+
+import histomicstk
+from histomicstk.cli import utils as cli_utils
+from histomicstk.cli.utils import CLIArgumentParser
+
 logging.basicConfig(level=logging.CRITICAL)
 
 
@@ -53,6 +58,7 @@ def gen_distinct_rgb_colors(n, seed=None):
 
 
 def read_feature_file(args):
+    import dask.dataframe as dd
 
     fname, feature_file_format = os.path.splitext(args.inputNucleiFeatureFile)
 
@@ -73,13 +79,14 @@ def read_feature_file(args):
 def check_args(args):
 
     if not os.path.isfile(args.inputImageFile):
-        raise IOError('Input image file does not exist.')
+        raise OSError('Input image file does not exist.')
 
     if not os.path.isfile(args.inputModelFile):
-        raise IOError('Input model file does not exist.')
+        raise OSError('Input model file does not exist.')
 
 
 def main(args):
+    import pandas as pd
 
     print('\n>> CLI Parameters ...\n')
 
@@ -162,7 +169,7 @@ def main(args):
 
         cur_anot = nuclei_annot_list[i]
         cur_anot['lineColor'] = 'rgb(%s)' % ','.join(
-            [str(int(round(col*255))) for col in class_color_map[cur_class]])
+            [str(int(round(col * 255))) for col in class_color_map[cur_class]])
         nuclei_annot_by_class[cur_class].append(cur_anot)
 
     #
@@ -177,13 +184,20 @@ def main(args):
     for c in clf_model.classes_:
 
         annotation.append({
-            "name": annot_fname + '-nuclei-class-' + str(c),
-            "elements": nuclei_annot_by_class[c]
+            'name': annot_fname + '-nuclei-class-' + str(c),
+            'elements': nuclei_annot_by_class[c]
         })
+    annotation.append({
+        'attributes': {
+            'params': vars(args),
+            'cli': Path(__file__).stem,
+            'version': histomicstk.__version__
 
+        }
+    })
     with open(args.outputNucleiAnnotationFile, 'w') as annotation_file:
-        json.dump(annotation, annotation_file, indent=2, sort_keys=False)
+        json.dump(annotation, annotation_file, separators=(',', ':'), sort_keys=False)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main(CLIArgumentParser().parse_args())

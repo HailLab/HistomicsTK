@@ -1,9 +1,8 @@
 import numpy as np
-import scipy.ndimage.filters as spf
 
 
 def gradient_diffusion(im_dx, im_dy, im_fgnd_mask,
-                       mu=5, lamda=5, iterations=10, dt=0.05):
+                       mu=5, lambda_=5, iterations=10, dt=0.05):
     """
     Diffusion of gradient field using Navier-Stokes equation. Used for
     smoothing/denoising a gradient field.
@@ -24,9 +23,9 @@ def gradient_diffusion(im_dx, im_dy, im_fgnd_mask,
         objects have value 0. Used to restrict influence of background vectors
         on diffusion process.
     mu : float
-        Weight parmeter from Navier-Stokes equation - weights divergence and
+        Weight parameter from Navier-Stokes equation - weights divergence and
         Laplacian terms. Default value = 5.
-    lamda : float
+    lambda_ : float
         Weight parameter from Navier-Stokes equation - used to weight
         divergence. Default value = 5.
     iterations : float
@@ -52,6 +51,7 @@ def gradient_diffusion(im_dx, im_dy, im_fgnd_mask,
            tracking" in BMC Cell Biology,vol.40,no.8, 2007.
 
     """
+    import scipy.ndimage as ndi
 
     # initialize solution
     im_vx = im_dx.copy()
@@ -67,11 +67,11 @@ def gradient_diffusion(im_dx, im_dy, im_fgnd_mask,
         DivY, DivX = np.gradient(Div)
 
         # calculate laplacians of current solution
-        im_vx += dt * (mu * spf.laplace(im_vx) +
-                       (lamda + mu) * DivX +
+        im_vx += dt * (mu * ndi.laplace(im_vx) +
+                       (lambda_ + mu) * DivX +
                        im_fgnd_mask * (im_dx - im_vx))
-        im_vy += dt * (mu * spf.laplace(im_vy) +
-                       (lamda + mu) * DivY +
+        im_vy += dt * (mu * ndi.laplace(im_vy) +
+                       (lambda_ + mu) * DivY +
                        im_fgnd_mask * (im_dy - im_vy))
 
     # return solution

@@ -1,9 +1,10 @@
 """Placeholder."""
+import numpy
+
 import histomicstk.utils as utils
+
 from . import _linalg as linalg
 from .complement_stain_matrix import complement_stain_matrix
-
-import numpy
 
 
 def separate_stains_macenko_pca(
@@ -120,5 +121,5 @@ def _get_angles(m):
 def argpercentile(arr, p):
     """Calculate index in arr of element nearest the pth percentile."""
     # Index corresponding to percentile
-    i = int(p * arr.size + 0.5)
+    i = min(int(p * arr.size + 0.5), arr.size - 1)
     return numpy.argpartition(arr, i)[i]

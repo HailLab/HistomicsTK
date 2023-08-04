@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.ndimage.measurements as ms
 
 
 def delete(im_label, indices):
@@ -30,16 +29,17 @@ def delete(im_label, indices):
     histomicstk.segmentation.label.condense
 
     """
+    import scipy.ndimage as ndi
 
     # initialize output
     Deleted = im_label.copy()
 
     # get extent of each object
-    Locations = ms.find_objects(Deleted)
+    Locations = ndi.find_objects(Deleted)
 
     # fill in new values
     for i in np.arange(indices.size):
-        if Locations[indices[i]-1] is not None:
+        if Locations[indices[i] - 1] is not None:
             Patch = Deleted[Locations[indices[i] - 1]]
             Patch[Patch == indices[i]] = 0
 

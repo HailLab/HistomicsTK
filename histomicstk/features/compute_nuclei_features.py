@@ -1,5 +1,4 @@
-import pandas as pd
-from skimage.measure import regionprops
+from histomicstk.segmentation import label as htk_label
 
 from .compute_fsd_features import compute_fsd_features
 from .compute_gradient_features import compute_gradient_features
@@ -7,10 +6,8 @@ from .compute_haralick_features import compute_haralick_features
 from .compute_intensity_features import compute_intensity_features
 from .compute_morphometry_features import compute_morphometry_features
 
-from histomicstk.segmentation import label as htk_label
 
-
-def compute_nuclei_features(im_label, im_nuclei, im_cytoplasm=None,
+def compute_nuclei_features(im_label, im_nuclei=None, im_cytoplasm=None,
                             fsd_bnd_pts=128, fsd_freq_bins=6, cyto_width=8,
                             num_glcm_levels=32,
                             morphometry_features_flag=True,
@@ -89,9 +86,31 @@ def compute_nuclei_features(im_label, im_nuclei, im_cytoplasm=None,
     -----
     List of features computed by this function
 
-    Morphometry (size and shape) features of the nuclei
+    Identifier
+        Location of the nucleus and its code in the input labeled mask.
+        Columns are prefixed by *Identifier.*. These include ...
+
+        Identifier.Label (int) - nucleus label in the input labeled mask
+
+        Identifier.Xmin (int) - Left bound
+
+        Identifier.Ymin (int) - Upper bound
+
+        Identifier.Xmax (int) - Right bound
+
+        Identifier.Ymax (int) - Lower bound
+
+        Identifier.CentroidX (float) - X centroid (columns)
+
+        Identifier.CentroidY (float) - Y centroid (rows)
+
+        Identifier.WeightedCentroidX (float) - intensity-weighted X centroid
+
+        Identifier.WeightedCentroidY (float) - intensity-weighted Y centroid
+
+    Morphometry (size, shape, and orientation) features of the nuclei
         See histomicstk.features.compute_morphometry_features for more details.
-        Feature names prefixed by *Size.* or *Shape.*.
+        Feature names prefixed by *Size.*, *Shape.*, or *Orientation.*.
 
     Fourier shape descriptor features
         See `histomicstk.features.compute_fsd_features` for more details.
@@ -121,18 +140,55 @@ def compute_nuclei_features(im_label, im_nuclei, im_cytoplasm=None,
     histomicstk.features.compute_haralick_features
 
     """
+    import pandas as pd
+    from skimage.measure import regionprops
+
+    # sanity checks
+    if any([
+        intensity_features_flag,
+        gradient_features_flag,
+        haralick_features_flag,
+    ]):
+        assert im_nuclei is not None, 'You must provide nuclei intensity!'
+
+    # TODO: this pipeline uses loops a lot. For each set of features it
+    #  iterates over all nuclei, which may become an issue when one needs to
+    #  do this for lots and lots of slides and 10^6+ nuclei. Consider
+    #  improving efficiency in the future somehow (cython? reuse? etc)
 
     feature_list = []
 
-    # get the number of objects in im_label
-    nuclei_props = regionprops(im_label)
+    # get the objects in im_label
+    nuclei_props = regionprops(im_label, intensity_image=im_nuclei)
+
+    # extract object locations and identifiers
+    idata = pd.DataFrame()
+    for i, nprop in enumerate(nuclei_props):
+        idata.at[i, 'Label'] = nprop.label
+        idata.at[i, 'Identifier.Xmin'] = nprop.bbox[1]
+        idata.at[i, 'Identifier.Ymin'] = nprop.bbox[0]
+        idata.at[i, 'Identifier.Xmax'] = nprop.bbox[3]
+        idata.at[i, 'Identifier.Ymax'] = nprop.bbox[2]
+        idata.at[i, 'Identifier.CentroidX'] = nprop.centroid[1]
+        idata.at[i, 'Identifier.CentroidY'] = nprop.centroid[0]
+        if im_nuclei is not None:
+            # intensity-weighted centroid
+            wcy, wcx = nprop.weighted_centroid
+            idata.at[i, 'Identifier.WeightedCentroidX'] = wcx
+            idata.at[i, 'Identifier.WeightedCentroidY'] = wcy
+    feature_list.append(idata)
 
     # compute cytoplasm mask
     if im_cytoplasm is not None:
 
         cyto_mask = htk_label.dilate_xor(im_label, neigh_width=cyto_width)
 
-        cytoplasm_props = regionprops(cyto_mask)
+        cyto_props = regionprops(cyto_mask, intensity_image=im_cytoplasm)
+
+        # ensure that cytoplasm props order corresponds to the nuclei
+        lablocs = {v['label']: i for i, v in enumerate(cyto_props)}
+        cyto_props = [cyto_props[lablocs[v['label']]] if v['label'] in lablocs else None
+                      for v in nuclei_props]
 
     # compute morphometry features
     if morphometry_features_flag:
@@ -163,7 +219,7 @@ def compute_nuclei_features(im_label, im_nuclei, im_cytoplasm=None,
     if intensity_features_flag and im_cytoplasm is not None:
 
         fint_cytoplasm = compute_intensity_features(cyto_mask, im_cytoplasm,
-                                                    rprops=cytoplasm_props)
+                                                    rprops=cyto_props)
         fint_cytoplasm.columns = ['Cytoplasm.' + col
                                   for col in fint_cytoplasm.columns]
 
@@ -183,7 +239,7 @@ def compute_nuclei_features(im_label, im_nuclei, im_cytoplasm=None,
     if gradient_features_flag and im_cytoplasm is not None:
 
         fgrad_cytoplasm = compute_gradient_features(cyto_mask, im_cytoplasm,
-                                                    rprops=cytoplasm_props)
+                                                    rprops=cyto_props)
         fgrad_cytoplasm.columns = ['Cytoplasm.' + col
                                    for col in fgrad_cytoplasm.columns]
 
@@ -209,7 +265,7 @@ def compute_nuclei_features(im_label, im_nuclei, im_cytoplasm=None,
         fharalick_cytoplasm = compute_haralick_features(
             cyto_mask, im_cytoplasm,
             num_levels=num_glcm_levels,
-            rprops=cytoplasm_props
+            rprops=cyto_props
         )
 
         fharalick_cytoplasm.columns = ['Cytoplasm.' + col

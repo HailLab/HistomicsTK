@@ -1,27 +1,21 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Wed Sep 18 03:29:24 2019.
 
 @author: mtageld
 """
 
+import cv2
 import numpy as np
 from PIL import Image
-from pandas import DataFrame
-from histomicstk.annotations_and_masks.annotation_and_mask_utils import (
-    get_image_from_htk_response)
-from histomicstk.preprocessing.color_deconvolution.color_deconvolution import (
-    color_deconvolution_routine)
+
+from histomicstk.annotations_and_masks.annotation_and_mask_utils import \
+    get_image_from_htk_response
 from histomicstk.annotations_and_masks.masks_to_annotations_handler import (
-    get_contours_from_mask, get_annotation_documents_from_contours)
-import cv2
-from skimage.filters import threshold_otsu, gaussian
-from scipy import ndimage
+    get_annotation_documents_from_contours, get_contours_from_mask)
+from histomicstk.preprocessing.color_deconvolution.color_deconvolution import \
+    color_deconvolution_routine
 
 Image.MAX_IMAGE_PIXELS = None
-
-# %%===========================================================================
 
 
 def get_slide_thumbnail(gc, slide_id):
@@ -40,11 +34,9 @@ def get_slide_thumbnail(gc, slide_id):
         RGB slide thumbnail at lowest level
 
     """
-    getStr = "/item/%s/tiles/thumbnail" % (slide_id)
+    getStr = '/item/%s/tiles/thumbnail' % (slide_id)
     resp = gc.get(getStr, jsonResp=False)
     return get_image_from_htk_response(resp)
-
-# %%===========================================================================
 
 
 def _deconv_color(im, **kwargs):
@@ -52,12 +44,10 @@ def _deconv_color(im, **kwargs):
     Stains, _, _ = color_deconvolution_routine(im, **kwargs)
     return Stains, 0
 
-# %%===========================================================================
-
 
 def get_tissue_mask(
         thumbnail_im,
-        deconvolve_first=False, stain_unmixing_routine_kwargs={},
+        deconvolve_first=False, stain_unmixing_routine_kwargs=None,
         n_thresholding_steps=1, sigma=0., min_size=500):
     """Get binary tissue mask from slide thumbnail.
 
@@ -74,7 +64,7 @@ def get_tissue_mask(
     stain_matrix_method : str
         see deconv_color method in seed_utils
     n_thresholding_steps : int
-        number of gaussian smoothign steps
+        number of gaussian smoothing steps
     sigma : float
         sigma of gaussian filter
     min_size : int
@@ -82,12 +72,18 @@ def get_tissue_mask(
 
     Returns
     --------
-    np bool array
-        largest contiguous tissue region.
     np int32 array
         each unique value represents a unique tissue region
+    np bool array
+        largest contiguous tissue region.
 
     """
+    from scipy import ndimage
+    from skimage.filters import gaussian, threshold_otsu
+
+    stain_unmixing_routine_kwargs = (
+        {} if stain_unmixing_routine_kwargs is None else stain_unmixing_routine_kwargs)
+
     if deconvolve_first and (len(thumbnail_im.shape) == 3):
         # deconvolvve to ge hematoxylin channel (cellular areas)
         # hematoxylin channel return shows MINIMA so we invert
@@ -138,8 +134,6 @@ def get_tissue_mask(
     return labeled, mask
 
 
-# %%===========================================================================
-
 def get_tissue_boundary_annotation_documents(
         gc, slide_id, labeled,
         color='rgb(0,0,0)', group='tissue', annprops=None):
@@ -171,6 +165,8 @@ def get_tissue_boundary_annotation_documents(
         each dict is an annotation document that you can post to DSA
 
     """
+    from pandas import DataFrame
+
     # Get annotations properties
     if annprops is None:
         slide_info = gc.get('item/%s/tiles' % slide_id)
@@ -192,18 +188,16 @@ def get_tissue_boundary_annotation_documents(
     contours_tissue = get_contours_from_mask(
         MASK=0 + (labeled > 0), GTCodes_df=GTCodes_df,
         get_roi_contour=False, MIN_SIZE=0, MAX_SIZE=None, verbose=False,
-        monitorPrefix="tissue: getting contours")
+        monitorPrefix='tissue: getting contours')
     annotation_docs = get_annotation_documents_from_contours(
         contours_tissue.copy(), docnamePrefix='test', annprops=annprops,
-        verbose=False, monitorPrefix="tissue : annotation docs")
+        verbose=False, monitorPrefix='tissue : annotation docs')
 
     return annotation_docs
 
-# %%===========================================================================
-
 
 def threshold_multichannel(
-        im, thresholds, channels=['hue', 'saturation', 'intensity'],
+        im, thresholds, channels=None,
         just_threshold=False, get_tissue_mask_kwargs=None):
     """Threshold a multi-channel image (eg. HSI image) to get tissue.
 
@@ -222,7 +216,7 @@ def threshold_multichannel(
     channels : list
         names of channels, in order (eg. hue, saturation, intensity)
     just_threshold : bool
-        if Fase, get_tissue_mask() is used to smooth result and get regions.
+        if False, get_tissue_mask() is used to smooth result and get regions.
     get_tissue_mask_kwargs : dict
         key-value pairs of parameters to pass to get_tissue_mask()
 
@@ -234,6 +228,8 @@ def threshold_multichannel(
         if not just_threshold, largest contiguous tissue region.
 
     """
+    channels = ['hue', 'saturation', 'intensity'] if channels is None else channels
+
     if get_tissue_mask_kwargs is None:
         get_tissue_mask_kwargs = {
             'n_thresholding_steps': 1,
@@ -259,8 +255,6 @@ def threshold_multichannel(
 
     return labeled, mask
 
-# %%===========================================================================
-
 
 def _get_largest_regions(labeled, top_n=10):
 
@@ -277,5 +271,3 @@ def _get_largest_regions(labeled, top_n=10):
     labeled_im[mask == 0] = 0
 
     return labeled_im
-
-# %%===========================================================================

@@ -10,3 +10,5 @@ docker create --name wheels dsarchive/histomicstk_wheels
 docker cp wheels:/io/wheels .
 docker rm wheels
 
+python -m pip install scikit-build
+python setup.py sdist

@@ -1,25 +1,22 @@
-import os
 import json
+import logging
+import os
 import time
-
-import numpy as np
-import pandas as pd
-import dask
-
-import histomicstk.preprocessing.color_normalization as htk_cnorm
-import histomicstk.preprocessing.color_deconvolution as htk_cdeconv
-import histomicstk.features as htk_features
-import histomicstk.utils as htk_utils
-import histomicstk.segmentation.nuclear as htk_nuclear
-import histomicstk.segmentation.label as htk_seg_label
+from pathlib import Path
 
 import large_image
+import numpy as np
 
+import histomicstk
+import histomicstk.features as htk_features
+import histomicstk.preprocessing.color_deconvolution as htk_cdeconv
+import histomicstk.preprocessing.color_normalization as htk_cnorm
+import histomicstk.segmentation.label as htk_seg_label
+import histomicstk.segmentation.nuclear as htk_nuclear
+import histomicstk.utils as htk_utils
+from histomicstk.cli import utils as cli_utils
 from histomicstk.cli.utils import CLIArgumentParser
 
-from histomicstk.cli import utils as cli_utils
-
-import logging
 logging.basicConfig(level=logging.CRITICAL)
 
 
@@ -50,7 +47,7 @@ def compute_tile_nuclei_features(slide_path, tile_position, args, it_kwargs,
 
     im_stains = htk_cdeconv.color_deconvolution(im_nmzd, w).Stains
 
-    im_nuclei_stain = im_stains[:, :, 0].astype(np.float)
+    im_nuclei_stain = im_stains[:, :, 0].astype(float)
 
     # segment nuclear foreground
     im_nuclei_fgnd_mask = im_nuclei_stain < args.foreground_threshold
@@ -86,7 +83,7 @@ def compute_tile_nuclei_features(slide_path, tile_position, args, it_kwargs,
     if flag_nuclei_found:
 
         if args.cytoplasm_features:
-            im_cytoplasm_stain = im_stains[:, :, 1].astype(np.float)
+            im_cytoplasm_stain = im_stains[:, :, 1].astype(float)
         else:
             im_cytoplasm_stain = None
 
@@ -110,7 +107,7 @@ def compute_tile_nuclei_features(slide_path, tile_position, args, it_kwargs,
 def check_args(args):
 
     if not os.path.isfile(args.inputImageFile):
-        raise IOError('Input image file does not exist.')
+        raise OSError('Input image file does not exist.')
 
     if len(args.reference_mu_lab) != 3:
         raise ValueError('Reference Mean LAB should be a 3 element vector.')
@@ -126,6 +123,8 @@ def check_args(args):
 
 
 def main(args):
+    import dask
+    import pandas as pd
 
     total_start_time = time.time()
 
@@ -154,7 +153,7 @@ def main(args):
     print(c)
 
     dask_setup_time = time.time() - start_time
-    print('Dask setup time = {} seconds'.format(dask_setup_time))
+    print(f'Dask setup time = {dask_setup_time} seconds')
 
     #
     # Read Input Image
@@ -199,11 +198,11 @@ def main(args):
     if not process_whole_image:
 
         it_kwargs['region'] = {
-            'left':   args.analysis_roi[0],
-            'top':    args.analysis_roi[1],
-            'width':  args.analysis_roi[2],
+            'left': args.analysis_roi[0],
+            'top': args.analysis_roi[1],
+            'width': args.analysis_roi[2],
             'height': args.analysis_roi[3],
-            'units':  'base_pixels'
+            'units': 'base_pixels'
         }
 
     if is_wsi:
@@ -214,7 +213,7 @@ def main(args):
 
         num_tiles = ts.getSingleTile(**it_kwargs)['iterator_range']['position']
 
-        print('Number of tiles = {}'.format(num_tiles))
+        print(f'Number of tiles = {num_tiles}')
 
         if process_whole_image:
 
@@ -225,7 +224,7 @@ def main(args):
 
         else:
 
-            tile_fgnd_frac_list = [1.0] * num_tiles
+            tile_fgnd_frac_list = np.full(num_tiles, 1.0)
 
         num_fgnd_tiles = np.count_nonzero(
             tile_fgnd_frac_list >= args.min_fgnd_frac)
@@ -234,7 +233,7 @@ def main(args):
 
         fgnd_frac_comp_time = time.time() - start_time
 
-        print('Number of foreground tiles = {0:d} ({1:2f}%%)'.format(
+        print('Number of foreground tiles = {:d} ({:2f}%%)'.format(
             num_fgnd_tiles, percent_fgnd_tiles))
 
         print('Tile foreground fraction computation time = {}'.format(
@@ -305,7 +304,7 @@ def main(args):
 
     nuclei_detection_time = time.time() - start_time
 
-    print('Number of nuclei = {}'.format(len(nuclei_annot_list)))
+    print(f'Number of nuclei = {len(nuclei_annot_list)}')
     print('Nuclei detection time = {}'.format(
         cli_utils.disp_time_hms(nuclei_detection_time)))
 
@@ -318,12 +317,18 @@ def main(args):
         os.path.basename(args.outputNucleiAnnotationFile))[0]
 
     annotation = {
-        "name": annot_fname + '-nuclei-' + args.nuclei_annotation_format,
-        "elements": nuclei_annot_list
+        'name': annot_fname + '-nuclei-' + args.nuclei_annotation_format,
+        'elements': nuclei_annot_list,
+        'attributes': {
+            'src_mu_lab': None if src_mu_lab is None else src_mu_lab.tolist(),
+            'src_sigma_lab': None if src_sigma_lab is None else src_sigma_lab.tolist(),
+            'params': vars(args),
+            'cli': Path(__file__).stem,
+            'version': histomicstk.__version__, }
     }
 
     with open(args.outputNucleiAnnotationFile, 'w') as annotation_file:
-        json.dump(annotation, annotation_file, indent=2, sort_keys=False)
+        json.dump(annotation, annotation_file, separators=(',', ':'), sort_keys=False)
 
     #
     # Create CSV Feature file
@@ -349,5 +354,5 @@ def main(args):
         cli_utils.disp_time_hms(total_time_taken)))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main(CLIArgumentParser().parse_args())

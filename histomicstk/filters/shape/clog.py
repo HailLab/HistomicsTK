@@ -1,11 +1,8 @@
 import numpy as np
 
-from scipy.ndimage.filters import gaussian_laplace
-from scipy.ndimage.morphology import distance_transform_edt
-
 
 def clog(im_input, im_mask, sigma_min, sigma_max):
-    """Constrainted Laplacian of Gaussian filter.
+    """Constrained Laplacian of Gaussian filter.
 
     Takes as input a grayscale nuclear image and binary mask of cell nuclei,
     and uses the distance transform of the nuclear mask to constrain the LoG
@@ -21,7 +18,7 @@ def clog(im_input, im_mask, sigma_min, sigma_max):
         A binary image where nuclei pixels have value 1/True, and non-nuclear
         pixels have value 0/False.
     sigma_min : double
-        Minumum sigma value for the scale space. For blob detection, set this
+        Minimum sigma value for the scale space. For blob detection, set this
         equal to minimum-blob-radius / sqrt(2).
     sigma_max : double
         Maximum sigma value for the scale space. For blob detection, set this
@@ -30,7 +27,7 @@ def clog(im_input, im_mask, sigma_min, sigma_max):
     Returns
     -------
     im_log_max : array_like
-        An intensity image containing the maximal LoG filter response accross
+        An intensity image containing the maximal LoG filter response across
         all scales for each pixel
     im_sigma_max : array_like
         An intensity image containing the sigma value corresponding to the
@@ -44,9 +41,10 @@ def clog(im_input, im_mask, sigma_min, sigma_max):
            Biomedical Engineering,vol.57,no.4,pp.847-52, 2010.
 
     """
+    from scipy.ndimage import distance_transform_edt, gaussian_laplace
 
     # convert intensity image type to float
-    im_input = im_input.astype(np.float)
+    im_input = im_input.astype(float)
 
     # generate distance map
     im_dmap = distance_transform_edt(im_mask)
@@ -66,11 +64,11 @@ def clog(im_input, im_mask, sigma_min, sigma_max):
     im_sigma_max = np.zeros_like(im_input)
 
     # Compute maximal LoG filter response across the scale space
-    sigma_start = np.floor(sigma_min)
-    sigma_end = np.ceil(sigma_max)
+    sigma_start = int(np.floor(sigma_min))
+    sigma_end = int(np.ceil(sigma_max))
 
     sigma_list = np.linspace(sigma_start, sigma_end,
-                             sigma_end - sigma_start + 1)
+                             int(sigma_end - sigma_start + 1))
 
     for sigma in sigma_list:
 

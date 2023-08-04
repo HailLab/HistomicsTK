@@ -1,18 +1,14 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Tue Sep 24 00:43:04 2019.
 
 @author: mtageld
 """
-import os
-import logging
 import datetime
+import logging
+import os
 
-# %% ==========================================================================
 
-
-class Print_and_log(object):
+class Print_and_log:
     """Print to screen and/or log if conditions are satisfied (Internal)."""
 
     def __init__(self, verbose=True, logger=None):
@@ -28,14 +24,14 @@ class Print_and_log(object):
         if self.keep_log:
             self.logger.info(text)
 
-# %% ==========================================================================
 
-
-class Base_HTK_Class(object):
+class Base_HTK_Class:
     """Just a base class with preferred behavior to inherit."""
 
-    def __init__(self, default_attr={}, more_allowed_attr=[], **kwargs):
+    def __init__(self, default_attr=None, more_allowed_attr=None, **kwargs):
         """Init base HTK class."""
+        default_attr = {} if default_attr is None else default_attr
+        more_allowed_attr = [] if more_allowed_attr is None else more_allowed_attr
 
         da = {
             'verbose': 1,
@@ -57,7 +53,7 @@ class Base_HTK_Class(object):
         rejected_keys = set(kwargs.keys()) - set(allowed_attr)
         if rejected_keys:
             raise ValueError(
-                "Invalid arguments in constructor:{}".format(rejected_keys))
+                f'Invalid arguments in constructor:{rejected_keys}')
 
         # configure logger
         self.keep_log = self.logging_savepath is not None
@@ -65,7 +61,7 @@ class Base_HTK_Class(object):
             logger = logging.getLogger()
             self.logname = os.path.join(
                 self.logging_savepath,
-                datetime.datetime.now().strftime("%Y-%m-%d_%H-%M") + '.log')
+                datetime.datetime.now().strftime('%Y-%m-%d_%H-%M') + '.log')
             logging.basicConfig(filename=self.logname, level=logging.INFO)
         else:
             logger = None
@@ -76,6 +72,4 @@ class Base_HTK_Class(object):
         self.cpr2 = Print_and_log(verbose=self.verbose >= 2, logger=logger)
         self._print2 = self.cpr2._print
         if self.keep_log:
-            self._print1("Saving logs to: %s" % self.logname)
-
-# %% ==========================================================================
+            self._print1('Saving logs to: %s' % self.logname)

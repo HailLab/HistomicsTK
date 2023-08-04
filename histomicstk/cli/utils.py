@@ -1,23 +1,20 @@
 from argparse import Namespace
 from datetime import timedelta
-from ctk_cli import CLIArgumentParser
-import psutil
+
+import large_image
 import numpy as np
-import skimage.measure
-import skimage.morphology
+from ctk_cli import CLIArgumentParser  # noqa I004
+# imported for side effects
+from slicer_cli_web import ctk_cli_adjustment  # noqa
 
 import histomicstk.preprocessing.color_deconvolution as htk_cdeconv
 import histomicstk.segmentation as htk_seg
 import histomicstk.utils as htk_utils
-from histomicstk.cli import ctk_cli_adjustment  # noqa - imported for side effects
-
-import large_image
-
 
 # These defaults are only used if girder is not present
 # Use memcached by default.
 large_image.config.setConfig('cache_backend', 'memcached')
-# If memcached is unavilable, specify the fraction of memory that python
+# If memcached is unavailable, specify the fraction of memory that python
 # caching is allowed to use.  This is deliberately small.
 large_image.config.setConfig('cache_python_memory_portion', 32)
 
@@ -49,10 +46,11 @@ def get_stain_matrix(args, count=3):
     Return a numpy array of column vectors.
 
     """
-    return np.array([get_stain_vector(args, i+1) for i in range(count)]).T
+    return np.array([get_stain_vector(args, i + 1) for i in range(count)]).T
 
 
-def segment_wsi_foreground_at_low_res(ts, lres_size=2048):
+def segment_wsi_foreground_at_low_res(
+        ts, lres_size=2048, invert_image=False, frame=None, default_img_inversion=False):
 
     ts_metadata = ts.getMetadata()
 
@@ -68,10 +66,28 @@ def segment_wsi_foreground_at_low_res(ts, lres_size=2048):
 
     im_lres, _ = ts.getRegion(
         scale=fgnd_seg_scale,
-        format=large_image.tilesource.TILE_FORMAT_NUMPY
+        format=large_image.tilesource.TILE_FORMAT_NUMPY,
+        frame=frame
     )
 
-    im_lres = im_lres[:, :, :3]
+    # check number of channels
+    if len(im_lres.shape) <= 2 or im_lres.shape[2] == 1:
+        im_lres = np.dstack((im_lres, im_lres, im_lres))
+        if default_img_inversion:
+            invert_image = True
+    else:
+        im_lres = im_lres[:, :, :3]
+
+    # perform image inversion
+    if invert_image:
+        im_lres = np.max(im_lres) - im_lres
+
+    # casting the float to integers
+    if issubclass(im_lres.dtype.type, np.floating) and np.max(im_lres) > 1:
+        if np.min(im_lres) >= 0 and np.max(im_lres) < 256:
+            im_lres = im_lres.astype(np.uint8)
+        elif np.min(im_lres) >= 0 and np.max(im_lres) < 65536:
+            im_lres = im_lres.astype(np.uint16)
 
     # compute foreground mask at low-res
     im_fgnd_mask_lres = htk_utils.simple_mask(im_lres)
@@ -80,6 +96,7 @@ def segment_wsi_foreground_at_low_res(ts, lres_size=2048):
 
 
 def create_tile_nuclei_bbox_annotations(im_nuclei_seg_mask, tile_info):
+    import skimage.measure
 
     nuclei_annot_list = []
 
@@ -104,13 +121,13 @@ def create_tile_nuclei_bbox_annotations(im_nuclei_seg_mask, tile_info):
 
         # create annotation json
         cur_bbox = {
-            "type": "rectangle",
-            "center": [cx, cy, 0],
-            "width": width,
-            "height": height,
-            "rotation": 0,
-            "fillColor": "rgba(0,0,0,0)",
-            "lineColor": "rgb(0,255,0)"
+            'type': 'rectangle',
+            'center': [cx, cy, 0],
+            'width': width,
+            'height': height,
+            'rotation': 0,
+            'fillColor': 'rgba(0,0,0,0)',
+            'lineColor': 'rgb(0,255,0)'
         }
 
         nuclei_annot_list.append(cur_bbox)
@@ -145,11 +162,11 @@ def create_tile_nuclei_boundary_annotations(im_nuclei_seg_mask, tile_info):
 
         # create annotation json
         cur_annot = {
-            "type": "polyline",
-            "points": cur_points,
-            "closed": True,
-            "fillColor": "rgba(0,0,0,0)",
-            "lineColor": "rgb(0,255,0)"
+            'type': 'polyline',
+            'points': cur_points,
+            'closed': True,
+            'fillColor': 'rgba(0,0,0,0)',
+            'lineColor': 'rgb(0,255,0)'
         }
 
         nuclei_annot_list.append(cur_annot)
@@ -182,13 +199,16 @@ def create_dask_client(args):
 
     """
     import dask
+    import psutil
+
     scheduler = getattr(args, 'scheduler', None)
     num_workers = getattr(args, 'num_workers', 0)
     num_threads_per_worker = getattr(args, 'num_threads_per_worker', 0)
 
     if scheduler == 'multithreading':
-        import dask.threaded
         from multiprocessing.pool import ThreadPool
+
+        import dask.threaded
 
         if num_threads_per_worker <= 0:
             num_workers = max(1, psutil.cpu_count(logical=False) + num_threads_per_worker)
@@ -200,8 +220,9 @@ def create_dask_client(args):
         return
 
     if scheduler == 'multiprocessing':
-        import dask.multiprocessing
         import multiprocessing
+
+        import dask.multiprocessing
 
         dask.config.set(scheduler='processes')
         if num_workers <= 0:
@@ -233,6 +254,99 @@ def create_dask_client(args):
     return dask.distributed.Client(scheduler)
 
 
+def get_region_polygons(region):
+    """
+    Convert the region into a list of polygons.
+
+    Params
+    ------
+    region: list
+        4 elements -- left, top, width, height -- or all -1, meaning the whole
+        slide.
+        6 elements -- x,y,z,rx,ry,rz: a rectangle specified by center and
+        radius.
+        8 or more elements -- x,y,x,y,...: a polygon.  The region is the
+        bounding box.
+
+    Returns
+    -------
+    polygons: list
+        A list of lists of x, y tuples.
+    """
+    if len(region) % 2 or len(region) < 4:
+        raise ValueError('region must be 4, 6, or a list of 2n values.')
+    region = [float(v) for v in region]
+    if region == [-1] * 4:
+        return []
+    if len(region) == 6:
+        region = [region[0] - region[3], region[1] - region[4], region[3] * 2, region[4] * 2]
+    if len(region) == 4:
+        region = [
+            region[0], region[1],
+            region[0] + region[2], region[1],
+            region[0] + region[2], region[1] + region[3],
+            region[0], region[1] + region[3],
+        ]
+    polys = [[]]
+    for idx, x in enumerate(region[::2]):
+        y = region[idx * 2 + 1]
+        if x == -1 and y == -1:
+            polys.append([])
+        elif not len(polys[-1]) or (x, y) != tuple(polys[-1][-1]):
+            polys[-1].append((x, y))
+    for poly in polys:
+        if len(poly) and poly[0] == poly[-1]:
+            poly[-1:] = []
+    polys = [poly for poly in polys if len(poly) >= 3]
+    return polys
+
+
+def polygons_to_binary_mask(polygons, x=0, y=0, width=None, height=None):
+    """Convert a set of region polygons to a numpy binary mask.
+
+    Params
+    ------
+    polygons: list
+        A list of lists of x, y tuples.  If None, returns None.
+    x: integer
+        An offset for the mask compared to the polygon coordinates.
+    y: integer
+        An offset for the mask compared to the polygon coordinates.
+    width: integer
+        The width of the mask to return.  None uses the maximum polygon
+        coordinate.
+    height: integer
+        The height of the mask to return.  None uses the maximum polygon
+        coordinate.
+
+    Returns
+    -------
+    mask: numpy.array
+        A 1-bit numpy array where 1 is inside an odd number of polygons.  This
+        can return None if polygons was None.
+    """
+    import PIL.Image
+    import PIL.ImageChops
+    import PIL.ImageDraw
+
+    if polygons is None or not len(polygons):
+        return None
+    if width is None:
+        width = max(pt[0] for poly in polygons for pt in poly) - x
+    if height is None:
+        height = max(pt[1] for poly in polygons for pt in poly) - y
+    full = PIL.Image.new('1', (width, height), 0)
+    for polyidx, poly in enumerate(polygons):
+        mask = PIL.Image.new('1', (width, height), 0)
+        PIL.ImageDraw.Draw(mask).polygon(
+            [(int(pt[0] - x), int(pt[1] - y)) for pt in poly], outline=None, fill=1)
+        if not polyidx:
+            full = mask
+        else:
+            full = PIL.ImageChops.logical_xor(full, mask)
+    return np.array(full)
+
+
 def get_region_dict(region, maxRegionSize=None, tilesource=None):
     """Return a dict corresponding to region, checking the region size if
     maxRegionSize is provided.
@@ -246,12 +360,17 @@ def get_region_dict(region, maxRegionSize=None, tilesource=None):
     region: list
         4 elements -- left, top, width, height -- or all -1, meaning the whole
         slide.
+        6 elements -- x,y,z,rx,ry,rz: a rectangle specified by center and
+        radius.
+        8 or more elements -- x,y,x,y,...: a polygon.  The region is the
+        bounding box.
     maxRegionSize: int, optional
-        Maximum size permitted of any single dimension
+        Maximum size permitted of any single dimension.  -1 or None for
+        unlimited.
     tilesource: tilesource, optional
         A `large_image` tilesource (or anything with `.sizeX` and `.sizeY`
         properties) that is used to determine the size of the whole slide if
-        necessary.  Must be provided if `maxRegionSize` is.
+        necessary.  Must be provided if `maxRegionSize` is not None.
 
     Returns
     -------
@@ -261,26 +380,42 @@ def get_region_dict(region, maxRegionSize=None, tilesource=None):
 
     """
 
-    if len(region) != 4:
-        raise ValueError('Exactly four values required for --region')
+    if len(region) % 2 or len(region) < 4:
+        raise ValueError('region must be 4, 6, or a list of 2n values.')
 
     useWholeImage = region == [-1] * 4
 
-    if maxRegionSize is not None:
+    if len(region) == 6:
+        region = [region[0] - region[3], region[1] - region[4], region[3] * 2, region[4] * 2]
+    if len(region) >= 8:
+        polygons = get_region_polygons(region)
+        minx = min(pt[0] for poly in polygons for pt in poly)
+        maxx = max(pt[0] for poly in polygons for pt in poly)
+        miny = min(pt[1] for poly in polygons for pt in poly)
+        maxy = max(pt[1] for poly in polygons for pt in poly)
+        region = [minx, miny, maxx - minx, maxy - miny]
+
+    if maxRegionSize is not None and maxRegionSize > 0:
         if tilesource is None:
-            raise ValueError('tilesource must be provided if maxRegionSize is')
-        if maxRegionSize != -1:
-            if useWholeImage:
-                size = max(tilesource.sizeX, tilesource.sizeY)
-            else:
-                size = max(region[-2:])
-            if size > maxRegionSize:
-                raise ValueError('Requested region is too large!  '
-                                 'Please see --maxRegionSize')
+            raise ValueError('tilesource must be provided if maxRegionSize is specified')
+        if useWholeImage:
+            size = max(tilesource.sizeX, tilesource.sizeY)
+        else:
+            size = max(region[-2:])
+        if size > maxRegionSize:
+            raise ValueError('Requested region is too large!  '
+                             'Please see --maxRegionSize')
+    # If a tilesource was specified, restrict the region to the image size
+    if not useWholeImage and tilesource:
+        minx = max(0, region[0])
+        maxx = min(tilesource.sizeX, region[0] + region[2])
+        miny = max(0, region[1])
+        maxy = min(tilesource.sizeY, region[1] + region[3])
+        region = [minx, miny, maxx - minx, maxy - miny]
 
     return {} if useWholeImage else dict(
         region=dict(zip(['left', 'top', 'width', 'height'],
-                        region)))
+                        [int(val) for val in region])))
 
 
 def disp_time_hms(seconds):

@@ -2,10 +2,6 @@ import math
 
 import numpy as np
 
-from scipy.ndimage.morphology import distance_transform_edt
-from scipy.ndimage.filters import gaussian_filter
-from skimage.transform import resize
-
 
 def cdog(im_input, im_mask, sigma_min, sigma_max, num_octave_levels=3):
     """SCale-adaptive Multiscale Difference-of-Gaussian (DoG) filter for
@@ -29,7 +25,7 @@ def cdog(im_input, im_mask, sigma_min, sigma_max, num_octave_levels=3):
     mask : array_like
         A binary image where nuclei pixels have non-zero values
     sigma_min : double
-        Minumum sigma value for the scale space. For blob detection, set this
+        Minimum sigma value for the scale space. For blob detection, set this
         equal to minimum-blob-radius / sqrt(2).
     sigma_max : double
         Maximum sigma value for the scale space. For blob detection, set this
@@ -40,7 +36,7 @@ def cdog(im_input, im_mask, sigma_min, sigma_max, num_octave_levels=3):
     Returns
     -------
     im_dog_max : array_like
-        An intensity image containing the maximal DoG response accross
+        An intensity image containing the maximal DoG response across
         all scales for each pixel
     im_sigma_max : array_like
         An intensity image containing the sigma value corresponding to the
@@ -55,8 +51,10 @@ def cdog(im_input, im_mask, sigma_min, sigma_max, num_octave_levels=3):
            no. 2, 91-110, 2004.
 
     """
+    from scipy.ndimage import distance_transform_edt, gaussian_filter
+    from skimage.transform import resize
 
-    im_input = im_input.astype(np.float)
+    im_input = im_input.astype(float)
 
     # generate distance map
     im_dmap = distance_transform_edt(im_mask)
@@ -72,7 +70,7 @@ def cdog(im_input, im_mask, sigma_min, sigma_max, num_octave_levels=3):
 
     k = int(math.log(float(sigma_max) / sigma_min, sigma_ratio)) + 1
 
-    # Compute maximal DoG filter response accross the scale space
+    # Compute maximal DoG filter response across the scale space
     sigma_cur = sigma_min
     im_gauss_cur = gaussian_filter(im_input, sigma_cur)
     im_sigma_ubound_cur = im_sigma_ubound.copy()
@@ -121,7 +119,7 @@ def cdog(im_input, im_mask, sigma_min, sigma_max, num_octave_levels=3):
         sigma_cur = sigma_next
         im_gauss_cur = im_gauss_next
 
-        # udpate level
+        # update level
         n_level += 1
 
         # Do additional processing at the end of each octave

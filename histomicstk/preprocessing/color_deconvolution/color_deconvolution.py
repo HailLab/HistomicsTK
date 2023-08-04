@@ -1,18 +1,21 @@
 """Placeholder."""
-from histomicstk.preprocessing import color_conversion
+import collections
+
+import numpy as np
+
 import histomicstk.utils as utils
+from histomicstk.preprocessing import color_conversion
+from histomicstk.preprocessing.color_deconvolution.find_stain_index import \
+    find_stain_index
+from histomicstk.preprocessing.color_deconvolution.rgb_separate_stains_macenko_pca import \
+    rgb_separate_stains_macenko_pca
+from histomicstk.preprocessing.color_deconvolution.rgb_separate_stains_xu_snmf import \
+    rgb_separate_stains_xu_snmf
+from histomicstk.preprocessing.color_deconvolution.stain_color_map import \
+    stain_color_map
+
 from ._linalg import normalize
 from .complement_stain_matrix import complement_stain_matrix
-import collections
-import numpy as np
-from histomicstk.preprocessing.color_deconvolution.stain_color_map import (
-    stain_color_map)
-from histomicstk.preprocessing.color_deconvolution.find_stain_index import (
-    find_stain_index)
-from histomicstk.preprocessing.color_deconvolution.\
-    rgb_separate_stains_macenko_pca import rgb_separate_stains_macenko_pca
-from histomicstk.preprocessing.color_deconvolution.\
-    rgb_separate_stains_xu_snmf import rgb_separate_stains_xu_snmf
 
 
 def color_deconvolution(im_rgb, w, I_0=None):
@@ -33,7 +36,7 @@ def color_deconvolution(im_rgb, w, I_0=None):
     w : array_like
         A 3x3 matrix containing the color vectors in columns.
         For two stain images the third column is zero and will be
-        complemented using cross-product. Atleast two of the three
+        complemented using cross-product. At least two of the three
         columns must be non-zero.
     I_0 : float or array_like, optional
         A float a 3-vector containing background RGB intensities.
@@ -65,6 +68,12 @@ def color_deconvolution(im_rgb, w, I_0=None):
 
     """
     # complement stain matrix if needed
+    w = np.array(w)
+    if w.shape[1] < 3:
+        wc = np.zeros((w.shape[0], 3))
+        wc[:, :w.shape[1]] = w
+        w = wc
+
     if np.linalg.norm(w[:, 2]) <= 1e-16:
         wc = complement_stain_matrix(w)
     else:
@@ -74,7 +83,7 @@ def color_deconvolution(im_rgb, w, I_0=None):
     wc = normalize(wc)
 
     # invert stain matrix
-    Q = np.linalg.inv(wc)
+    Q = np.linalg.pinv(wc)
 
     # transform 3D input image to 2D RGB matrix format
     m = utils.convert_image_to_matrix(im_rgb)[:3]
@@ -100,7 +109,7 @@ def color_deconvolution(im_rgb, w, I_0=None):
     return Output
 
 
-def _reorder_stains(W, stains=['hematoxylin', 'eosin']):
+def _reorder_stains(W, stains=None):
     """Reorder stains in a stain matrix to a specific order.
 
     This is particularly relevant in macenco where the order of stains is not
@@ -121,7 +130,9 @@ def _reorder_stains(W, stains=['hematoxylin', 'eosin']):
         A re-ordered 3x3 matrix of stain column vectors.
 
     """
-    assert len(stains) == 2, "Only two-stain matrices are supported for now."
+    stains = ['hematoxylin', 'eosin'] if stains is None else stains
+
+    assert len(stains) == 2, 'Only two-stain matrices are supported for now.'
 
     def _get_channel_order(W):
         first = find_stain_index(stain_color_map[stains[0]], W)
@@ -138,9 +149,8 @@ def _reorder_stains(W, stains=['hematoxylin', 'eosin']):
 
 
 def stain_unmixing_routine(
-        im_rgb, stains=['hematoxylin', 'eosin'],
-        stain_unmixing_method='macenko_pca',
-        stain_unmixing_params={}, mask_out=None):
+        im_rgb, stains=None, stain_unmixing_method='macenko_pca',
+        stain_unmixing_params=None, mask_out=None):
     """Perform stain unmixing using the method of choice (wrapper).
 
     Parameters
@@ -191,6 +201,9 @@ def stain_unmixing_routine(
            analysis.  Computerized Medical Imaging and Graphics, 46, 20-29.
 
     """
+    stains = ['hematoxylin', 'eosin'] if stains is None else stains
+    stain_unmixing_params = {} if stain_unmixing_params is None else stain_unmixing_params
+
     stain_unmixing_method = stain_unmixing_method.lower()
 
     if stain_unmixing_method == 'macenko_pca':
@@ -201,10 +214,10 @@ def stain_unmixing_routine(
     elif stain_unmixing_method == 'xu_snmf':
         stain_deconvolution = rgb_separate_stains_xu_snmf
         stain_unmixing_params['I_0'] = None
-        assert mask_out is None, "Masking is not yet implemented in xu_snmf."
+        assert mask_out is None, 'Masking is not yet implemented in xu_snmf.'
 
     else:
-        raise ValueError("Unknown/Unimplemented deconvolution method.")
+        raise ValueError('Unknown/Unimplemented deconvolution method.')
 
     # get W_source
     W_source = stain_deconvolution(im_rgb, **stain_unmixing_params)

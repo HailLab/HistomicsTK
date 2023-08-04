@@ -1,17 +1,19 @@
-import skimage.io
+import json
+import logging
+from pathlib import Path
 
-from histomicstk.cli.utils import CLIArgumentParser
 import large_image
 
+import histomicstk
 import histomicstk.preprocessing.color_deconvolution as htk_cd
-
 from histomicstk.cli import utils
+from histomicstk.cli.utils import CLIArgumentParser
 
-import logging
 logging.basicConfig()
 
 
 def main(args):
+    import skimage.io
 
     # Read Input Image
     print('>> Reading input image')
@@ -47,6 +49,65 @@ def main(args):
     print(args.outputStainImageFile_3)
     skimage.io.imsave(args.outputStainImageFile_3, im_stains[:, :, 2])
 
+    if args.outputAnnotationFile:
+        region = utils.get_region_dict(args.region, args.maxRegionSize, ts)['region']
+        annotation = [{
+            'name': 'Deconvolution %s' % (
+                args.stain_1 if args.stain_1 != 'custom' else str(args.stain_1_vector)),
+            'elements': [{
+                'type': 'image',
+                'girderId': 'outputStainImageFile_1',
+                'transform': {
+                    'xoffset': region.get('left', 0),
+                    'yoffset': region.get('top', 0),
+                },
+            }],
+            'attributes': {
+                'cli': Path(__file__).stem,
+                'params': vars(args),
+                'version': histomicstk.__version__,
+            },
+        }, {
+            'name': 'Deconvolution %s' % (
+                args.stain_2 if args.stain_2 != 'custom' else str(args.stain_2_vector)),
+            'elements': [{
+                'type': 'image',
+                'girderId': 'outputStainImageFile_2',
+                'transform': {
+                    'xoffset': region.get('left', 0),
+                    'yoffset': region.get('top', 0),
+                },
+            }],
+            'attributes': {
+                'cli': Path(__file__).stem,
+                'params': vars(args),
+                'version': histomicstk.__version__,
+            },
+        }, {
+            'name': 'Deconvolution %s' % (
+                args.stain_3 if args.stain_3 != 'custom' else str(args.stain_3_vector)),
+            'elements': [{
+                'type': 'image',
+                'girderId': 'outputStainImageFile_3',
+                'transform': {
+                    'xoffset': region.get('left', 0),
+                    'yoffset': region.get('top', 0),
+                },
+            }],
+            'attributes': {
+                'cli': Path(__file__).stem,
+                'params': vars(args),
+                'version': histomicstk.__version__,
+            }
+        }]
+        if args.stain_3 == 'null':
+            annotation[2:] = []
+        if args.stain_2 == 'null':
+            annotation[1:2] = []
 
-if __name__ == "__main__":
+        with open(args.outputAnnotationFile, 'w') as annotation_file:
+            json.dump(annotation, annotation_file, separators=(',', ':'), sort_keys=False)
+
+
+if __name__ == '__main__':
     main(CLIArgumentParser().parse_args())

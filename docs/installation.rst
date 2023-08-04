@@ -4,16 +4,15 @@
 Installation
 ============
 
-As mentioned in the :doc:`index <index>`, HistomicsTK can be used both as a pure
-Python toolkit for algorithm development and as server-side Girder_ plugin
-for web-based analysis. Here, we describe how to install HistomicsTK for both
-these scenarios.
+HistomicsTK can be used both as a pure Python toolkit for algorithm development
+and as server-side Girder_ plugin for web-based analysis. Here, we describe how
+to install HistomicsTK for both these scenarios.
 
 Installing HistomicsTK as a Python toolkit
 ------------------------------------------
 
 On Linux, HistomicsTK can be installed via pip.  You can specify the
-`--find-links` option to get prebuilt libraries for reading some common image
+``--find-links`` option to get prebuilt libraries for reading some common image
 formats.  The installation command is::
 
     $ pip install histomicstk --find-links https://girder.github.io/large_image_wheels
@@ -47,9 +46,6 @@ analysis, the following three Girder plugins need to be installed:
 
 There are several methods that can be used to install HistomicsTK.  Each of these results in a fully deployed system.  Docker is often the easiest deployment.  Vagrant is the easiest development environment.
 
-.. include:: ../ansible/README.rst
-   :start-after: __methods
-
 Installing Slicer CLI Docker Images for Analysis
 ------------------------------------------------
 
@@ -81,5 +77,3 @@ interface, see `here <https://github.com/cdeepakroy/slicer_cli_web_plugin>`__.
 .. _scipy: https://www.scipy.org/
 .. _slicer_cli_web: https://github.com/girder/slicer_cli_web
 .. _anaconda: https://www.continuum.io/downloads
-
-

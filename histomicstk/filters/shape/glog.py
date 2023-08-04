@@ -1,11 +1,7 @@
 import numpy as np
-import scipy.ndimage as ndi
-from skimage import morphology
 
 
-def glog(im_input, alpha=1,
-         range=np.linspace(1.5, 3, int(np.round((3 - 1.5) / 0.2)) + 1),
-         theta=np.pi/4, tau=0.6, eps=0.6):
+def glog(im_input, alpha=1, range=None, theta=np.pi / 4, tau=0.6, eps=0.6):
     """Performs generalized Laplacian of Gaussian blob detection.
 
     Parameters
@@ -43,6 +39,10 @@ def glog(im_input, alpha=1,
        Transactions on Cybernetics, vol.43,no.6,pp.1719-33, 2013.
 
     """
+    import scipy.ndimage as ndi
+    from skimage import morphology
+
+    range = np.linspace(1.5, 3, int(np.round((3 - 1.5) / 0.2)) + 1) if range is None else range
 
     # initialize sigma
     Sigma = np.exp(range)
@@ -54,9 +54,9 @@ def glog(im_input, alpha=1,
     Min = np.zeros((len(Sigma), 1))
     Max = np.zeros((len(Sigma), 1))
     for i, s in enumerate(Sigma):
-        Response = s**2 * ndi.filters.gaussian_laplace(im_input, s, output=None,
-                                                       mode='constant',
-                                                       cval=0.0)
+        Response = s**2 * ndi.gaussian_laplace(im_input, s, output=None,
+                                               mode='constant',
+                                               cval=0.0)
         Min[i] = Response.min()
         Max[i] = Response.max()
         Bins.append(np.arange(0.01 * np.floor(Min[i] / 0.01),
@@ -76,11 +76,11 @@ def glog(im_input, alpha=1,
     Index = np.argmax(Zeta)
 
     # define range for SigmaX
-    XRange = range(max(Index-2, 0), min(len(range), Index + 2) + 1)
+    XRange = range(max(Index - 2, 0), min(len(range), Index + 2) + 1)
     SigmaX = np.exp(range[XRange])
 
     # define rotation angles
-    Thetas = np.linspace(0, np.pi - theta, np.round(np.pi / theta))
+    Thetas = np.linspace(0, np.pi - theta, int(np.round(np.pi / theta)))
 
     # loop over SigmaX, SigmaY and then angle, summing up filter responses
     Rsum = np.zeros(im_input.shape)
@@ -100,7 +100,7 @@ def glog(im_input, alpha=1,
 
     # detect local maxima
     Disk = morphology.disk(3 * np.exp(range[Index]))
-    Maxima = ndi.filters.maximum_filter(Rsum, footprint=Disk)
+    Maxima = ndi.maximum_filter(Rsum, footprint=Disk)
     Maxima = Rsum == Maxima
 
     return Rsum, Maxima
@@ -109,16 +109,16 @@ def glog(im_input, alpha=1,
 def glogkernel(sigma_x, sigma_y, theta):
 
     N = np.ceil(2 * 3 * sigma_x)
-    X, Y = np.meshgrid(np.linspace(0, N, N + 1) - N / 2,
-                       np.linspace(0, N, N + 1) - N / 2)
+    X, Y = np.meshgrid(np.linspace(0, N, int(N + 1)) - N / 2,
+                       np.linspace(0, N, int(N + 1)) - N / 2)
     a = np.cos(theta) ** 2 / (2 * sigma_x ** 2) + \
         np.sin(theta) ** 2 / (2 * sigma_y ** 2)
     b = -np.sin(2 * theta) / (4 * sigma_x ** 2) + \
         np.sin(2 * theta) / (4 * sigma_y ** 2)
     c = np.sin(theta) ** 2 / (2 * sigma_x ** 2) + \
         np.cos(theta) ** 2 / (2 * sigma_y ** 2)
-    D2Gxx = ((2*a*X + 2*b*Y)**2 - 2*a) * np.exp(-(a*X**2 + 2*b*X*Y + c*Y**2))
-    D2Gyy = ((2*b*X + 2*c*Y)**2 - 2*c) * np.exp(-(a*X**2 + 2*b*X*Y + c*Y**2))
-    Gaussian = np.exp(-(a*X**2 + 2*b*X*Y + c*Y**2))
+    D2Gxx = ((2 * a * X + 2 * b * Y)**2 - 2 * a) * np.exp(-(a * X**2 + 2 * b * X * Y + c * Y**2))
+    D2Gyy = ((2 * b * X + 2 * c * Y)**2 - 2 * c) * np.exp(-(a * X**2 + 2 * b * X * Y + c * Y**2))
+    Gaussian = np.exp(-(a * X**2 + 2 * b * X * Y + c * Y**2))
     Kernel = (D2Gxx + D2Gyy) / np.sum(Gaussian.flatten())
     return Kernel

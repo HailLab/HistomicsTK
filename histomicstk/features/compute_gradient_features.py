@@ -1,8 +1,4 @@
 import numpy as np
-import pandas as pd
-import scipy.stats
-from skimage.feature import canny
-from skimage.measure import regionprops
 
 
 def compute_gradient_features(im_label, im_intensity,
@@ -65,6 +61,10 @@ def compute_gradient_features(im_label, im_intensity,
        and statistics tables and formulae," Crc Press, 1999.
 
     """
+    import pandas as pd
+    import scipy.stats
+    from skimage.feature import canny
+    from skimage.measure import regionprops
 
     # List of feature names
     feature_list = [
@@ -93,6 +93,8 @@ def compute_gradient_features(im_label, im_intensity,
     cannyG = canny(im_intensity)
 
     for i in range(numLabels):
+        if rprops[i] is None:
+            continue
 
         # get gradients of object pixels
         pixelGradients = np.sort(
@@ -114,7 +116,7 @@ def compute_gradient_features(im_label, im_intensity,
 
         # compute intensity histogram
         hist, bins = np.histogram(pixelGradients, bins=num_hist_bins)
-        prob = hist/np.sum(hist, dtype=np.float32)
+        prob = hist / np.sum(hist, dtype=np.float32)
 
         # compute entropy
         fdata.at[i, 'Gradient.Mag.HistEntropy'] = scipy.stats.entropy(prob)

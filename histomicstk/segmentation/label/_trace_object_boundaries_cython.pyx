@@ -1,9 +1,10 @@
 import numpy as np
-cimport numpy as np
-cimport cython
 
+cimport cython
+cimport numpy as np
+from libc.math cimport M_PI, cos, round, sin
 from libcpp.vector cimport vector
-from libc.math cimport sin, cos, M_PI, round
+
 
 @cython.cdivision(True)
 @cython.boundscheck(False)
@@ -59,7 +60,7 @@ cdef long[:, :] _rot90(long[:, :] input):
     cdef long nrows = input.shape[0]
     cdef long ncols = input.shape[1]
 
-    cdef long[:, :] output = np.zeros([ncols, nrows], dtype=np.int)
+    cdef long[:, :] output = np.zeros([ncols, nrows], dtype=int)
 
     cdef long i, j
 
@@ -130,7 +131,7 @@ def _moore(long[:, :] mask, long[:, :] mask_90, long[:, :] mask_180, long[:, :] 
       # loop until true
       while(True):
 
-        h = np.zeros((row_isbf, col_isbf), dtype=np.int)
+        h = np.zeros((row_isbf, col_isbf), dtype=int)
 
         with nogil:
             with cython.boundscheck(False):
@@ -245,7 +246,7 @@ def _isbf(long[:, :] mask, long[:, :] mask_90, long[:, :] mask_180, long[:, :] m
     cdef vector[long] list_bx
     cdef vector[long] list_by
 
-    # set defalut direction
+    # set default direction
     cdef long DX = 1
     cdef long DY = 0
 
@@ -281,7 +282,7 @@ def _isbf(long[:, :] mask, long[:, :] mask_90, long[:, :] mask_180, long[:, :] m
 
     while(True):
 
-        h = np.zeros((row_isbf, col_isbf), dtype=np.int)
+        h = np.zeros((row_isbf, col_isbf), dtype=int)
 
         with nogil:
             with cython.boundscheck(False):
