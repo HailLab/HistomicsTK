@@ -3,15 +3,15 @@ import os
 
 from setuptools import find_packages, setup
 
-try:
-    from skbuild import setup
-except ImportError:
-    sys.stderr.write("""scikit-build is required to build from source or run tox.
-Please run:
-  python -m pip install scikit-build
-""")
-    # from setuptools import setup
-    sys.exit(1)
+# try:
+#     from skbuild import setup
+# except ImportError:
+#     sys.stderr.write("""scikit-build is required to build from source or run tox.
+# Please run:
+#   python -m pip install scikit-build
+# """)
+#     # from setuptools import setup
+#     sys.exit(1)
 
 
 with open('README.rst') as readme_file:
@@ -79,6 +79,9 @@ setup(
         'girder-slicer-cli-web',
         # cli
         'ctk-cli',
+        'girder-large-image-annotation>=1.13.0',
+        'girder-slicer-cli-web>=1.2.3',
+        'cachetools',
     ] + (
         # Only require opencv if it isn't installed.  This can allow alternate
         # forms to be in the environment (such as a headed form) without
@@ -103,4 +106,9 @@ setup(
     ],
     zip_safe=False,
     python_requires='>=3.7',
+    entry_points={
+        'girder.plugin': [
+            'histomicsui = histomicsui:GirderPlugin'
+        ]
+    },
 )
