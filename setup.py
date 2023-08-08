@@ -44,7 +44,7 @@ setup(
     long_description_content_type='text/x-rst',
     author='Kitware, Inc.',
     author_email='developers@digitalslidearchive.net',
-    url='https://github.com/DigitalSlideArchive/HistomicsTK',
+    url='https://github.com/HailLab/HistomicsTK',
     packages=find_packages(exclude=['tests', '*_test']),
     package_dir={
         'histomicstk': 'histomicstk',
@@ -73,8 +73,8 @@ setup(
         'distributed',
         # large image; for non-linux systems only install the PIL tile source
         # by default.
-        'large-image[sources];sys.platform=="linux"',
-        'large-image[sources];sys.platform=="linux2"',
+        #'large-image[sources]==1.0.0;sys.platform=="linux"',
+        #'large-image[sources]==1.0.0;sys.platform=="linux2"',
         'large-image[pil];sys.platform!="linux" and sys.platform!="linux2"',
         'girder-slicer-cli-web',
         # cli
