@@ -4,9 +4,9 @@ from __future__ import absolute_import
 # import sub-packages to support nested calls
 from . import utils  # must be imported before other packages
 
-from . import segmentation  # must be imported before features
+# from . import segmentation  # must be imported before features
 
-from . import features
+# from . import features
 from . import filters
 from . import preprocessing
 from . import annotations_and_masks
@@ -45,14 +45,18 @@ from girder.utility.model_importer import ModelImporter
 from girder.utility.webroot import Webroot
 from pkg_resources import DistributionNotFound, get_distribution
 
-from . import handlers, rest
+# from . import handlers, rest
 from .constants import PluginSettings
-from .models.aperio import Aperio
-from .models.case import Case
-from .models.cohort import Cohort
-from .models.image import Image
-from .models.pathology import Pathology
-from .models.slide import Slide
+from histomicsui.models.aperio import Aperio
+from histomicsui.models.case import Case
+from histomicsui.models.cohort import Cohort
+from histomicsui.models.image import Image
+from histomicsui.models.pathology import Pathology
+from histomicsui.models.slide import Slide
+
+from .folder_first_image import FolderFirstImageResource
+# from .send_to_redcap import SendToRedcapItemResource
+from .user_email_completion_notification import UserEmailCompletionNotificationResource
 
 try:
     __version__ = get_distribution(__name__).version
@@ -96,6 +100,14 @@ def patchCookieParsing():
                 http.cookies._CookiePattern, )
     except Exception:
         pass
+
+
+@setting_utilities.validator(PluginSettings.HUI_LAST_REDCAP_PULL)
+def validateHistomicsTKLastRedcapPull(doc):
+    try:
+        datetime.datetime.strptime(doc['value'], '%Y-%m-%d %H:%M:%S')
+    except ValueError:
+        raise ValidationException('Last REDCap Pull must be a date time.')
 
 
 @setting_utilities.validator({
@@ -163,6 +175,7 @@ SettingDefault.defaults.update({
     PluginSettings.HUI_BRAND_NAME: 'HistomicsUI',
     PluginSettings.HUI_BANNER_COLOR: '#f8f8f8',
     PluginSettings.HUI_BRAND_COLOR: '#777777',
+    PluginSettings.HUI_LAST_REDCAP_PULL: '2000-01-01 00:00:00',
 })
 
 
@@ -201,6 +214,7 @@ class WebrootHistomicsUI(Webroot):
             'huiBrandName': Setting().get(PluginSettings.HUI_BRAND_NAME),
             'huiBrandColor': Setting().get(PluginSettings.HUI_BRAND_COLOR),
             'huiBannerColor': Setting().get(PluginSettings.HUI_BANNER_COLOR),
+            'huiLastRedcapPull': Setting().get(PluginSettings.HUI_LAST_REDCAP_PULL),
         })
         return super()._renderHTML()
 
@@ -311,10 +325,10 @@ class GirderPlugin(plugin.GirderPlugin):
 __all__ = (
 
     # sub-packages
-    'features',
+    # 'features',
     'filters',
     'preprocessing',
-    'segmentation',
+    # 'segmentation',
     'utils',
     'annotations_and_masks',
     'saliency',

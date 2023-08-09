@@ -39,6 +39,7 @@ setup(
     name='histomicstk',
     use_scm_version={'local_scheme': prerelease_local_scheme,
                      'fallback_version': '0.0.0'},
+    setup_requires=['setuptools-scm'],
     description='A Python toolkit for Histopathology Image Analysis',
     long_description=readme,
     long_description_content_type='text/x-rst',
@@ -58,7 +59,7 @@ setup(
         'nimfa',
         'numpy',
         'scipy',
-        'Pillow',
+        'Pillow==9.5',
         'pandas',
         'scikit-image',
         'scikit-learn',
@@ -91,7 +92,7 @@ setup(
         ] if not importlib.util.find_spec('cv2') else []
     ),
     license='Apache Software License 2.0',
-    keywords='histomicstk',
+    keywords='girder-plugin, histomicstk',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'License :: OSI Approved :: Apache Software License',

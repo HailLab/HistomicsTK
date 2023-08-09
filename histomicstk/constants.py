@@ -94,10 +94,13 @@ VECTRA_FILE_FIELDS = dict([(v, k) for k, v in FILE_FIELDS_VECTRA.items()])
 
 # Constants representing the setting keys for this plugin
 class PluginSettings(object):
-    HISTOMICSTK_DEFAULT_DRAW_STYLES = 'histomicstk.default_draw_styles'
-    HISTOMICSTK_WEBROOT_PATH = 'histomicstk.webroot_path'
-    HISTOMICSTK_BRAND_NAME = 'histomicstk.brand_name'
-    HISTOMICSTK_BRAND_COLOR = 'histomicstk.brand_color'
-    HISTOMICSTK_BANNER_COLOR = 'histomicstk.banner_color'
-    HISTOMICSTK_ANALYSIS_ACCESS = 'histomicstk.analysis_access'
-    HISTOMICSTK_QUARANTINE_FOLDER = 'histomicstk.quarantine_folder'
+    HUI_DEFAULT_DRAW_STYLES = 'histomicstk.default_draw_styles'
+    HUI_WEBROOT_PATH = 'histomicstk.webroot_path'
+    HUI_BRAND_NAME = 'histomicstk.brand_name'
+    HUI_BRAND_COLOR = 'histomicstk.brand_color'
+    HUI_BANNER_COLOR = 'histomicstk.banner_color'
+    HUI_ANALYSIS_ACCESS = 'histomicstk.analysis_access'
+    HUI_QUARANTINE_FOLDER = 'histomicstk.quarantine_folder'
+    HUI_LAST_REDCAP_PULL = 'histomicstk.last_redcap_pull'
+    HUI_PANEL_LAYOUT = 'histomicsui.panel_layout'
+    HUI_ALTERNATE_WEBROOT_PATH = 'histomicsui.alternate_webroot_path'
