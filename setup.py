@@ -63,7 +63,7 @@ setup(
         'scikit-image',
         'scikit-learn',
         'imageio',
-        'shapely[vectorized]',
+        'shapely',
         'sqlalchemy ; python_version >= "3.8"',
         'sqlalchemy<2 ; python_version < "3.8"',
         'matplotlib',
@@ -108,7 +108,7 @@ setup(
     python_requires='>=3.7',
     entry_points={
         'girder.plugin': [
-            'histomicsui = histomicsui:GirderPlugin'
+            'histomicstk = histomicstk:GirderPlugin'
         ]
     },
 )

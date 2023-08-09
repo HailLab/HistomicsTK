@@ -255,12 +255,12 @@ class GirderPlugin(plugin.GirderPlugin):
 
         # Auto-ingest annotations into database when a file with an identifier
         # ending in 'AnnotationFile' is uploaded (usually .anot files).
-        events.bind('data.process', 'histomicstk.annotations', handlers.process_annotations)
+        events.bind('data.process', 'histomicsui.annotations', handlers.process_annotations)
         # Auto-ingest metadta into parent when a file with an identifier
         # ending in 'ItemMetadata' is uploaded (usually .meta files).
-        events.bind('data.process', 'histomicstk.metadata', handlers.process_metadata)
+        events.bind('data.process', 'histomicsui.metadata', handlers.process_metadata)
 
-        events.bind('model.job.save', 'histomicstk', _saveJob)
+        events.bind('model.job.save', 'histomicsui', _saveJob)
 
         def updateWebroot(event):
             """
@@ -271,9 +271,9 @@ class GirderPlugin(plugin.GirderPlugin):
             if event.info.get('key') == PluginSettings.HUI_WEBROOT_PATH:
                 setattr(info['serverRoot'], event.info['value'], huiRoot)
 
-        events.bind('model.setting.save.after', 'histomicstk', updateWebroot)
+        events.bind('model.setting.save.after', 'histomicsui', updateWebroot)
 
-        curConfig = config.getConfig().get('histomicstk', {})
+        curConfig = config.getConfig().get('histomicsui', {})
         if curConfig.get('restrict_downloads'):
             # Change some endpoints to require token access
             endpoints = [
