@@ -366,7 +366,7 @@ var DrawWidget = Panel.extend({
     skin_survey(evt) {
         var $el;
         var active = false;
-        const redcaptoken = 'E82B46ACB5A4ECD0E5B2579507445034';
+        const redcaptoken = 'EDA5B5DA88E062C5FBB54E86BF15C9A8';
         if (evt) {
             $el = this.$(evt.currentTarget);
             $el.tooltip('hide');

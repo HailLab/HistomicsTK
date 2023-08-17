@@ -1,0 +1,17 @@
+.modal-dialog(role='document')
+  .modal-content.h-open-help-modal-dialog
+    .modal-header
+      button.close(type='button', data-dismiss='modal', aria-label='Close')
+        span(aria-hidden='true') &times;
+      h4.modal-title Review the following tutorials
+    .modal-body
+      h5 Background reading:
+      a(href='https://vumc.box.com/s/932x77pg5liqv64aj72n3yianm32rgsg') Introduction to NIH skin scoring of chronic GVHD
+      hr
+      h5 The main video explaining how to use SkinApp and how to do annotations by using a computer mouse (5-minutes):
+      video.tab(controls='', width='100%') Your browser does not support the &lt;video&gt; tag.
+        source(src='https://gvhd-skin.s3.amazonaws.com/GVHD+Demo+4.mp4')
+      hr
+      h5 An additional video focusing on how to do annotations by using a tablet and a pen (3-minutes): 
+      video.tab(controls='', width='100%') Your browser does not support the &lt;video&gt; tag.
+        source(src='https://gvhd-skin.s3.amazonaws.com/GVHD+Tablet+Demo.mp4')

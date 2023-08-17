@@ -22,7 +22,7 @@ from girder.models.user import User
 from girder.models.item import Item
 from girder.models.collection import Collection
 from girder.exceptions import ValidationException
-from girder.utility import setting_utilities
+from girder.utility import setting_utilities, JsonEncoder
 
 
 PROCESS_OP = 'process'
@@ -185,14 +185,14 @@ metadata_data = {
     'forms': 'annotation',
 }
 annotation_instrument_data = {
-    'token': 'E82B46ACB5A4ECD0E5B2579507445034',
+    'token': args.redcaptoken,
     'content': 'record',
     'action': 'import',
     'format': 'json',
     'type': 'eav',
     'overwriteBehavior': 'overwrite',
     'forceAutoNumber': 'false',
-    'data': '{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":%s,"field_name":"%s","value":"%s"}',
+    'data': '[{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":"%s","field_name":"%s","value":"%s"}]',
     'returnContent': 'count',
     'returnFormat': 'json'
 }
@@ -619,16 +619,19 @@ def process_natiens_create_annotation_layers_update_links(items):
     }
     # Update links to images
     for item in items:
+        annotation_instrument_data['data'] = '[{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":"%s","field_name":"%s","value":"%s"}]'
         pilot_id, site_id, imaging_session, imaging_device_and_vectra = parse_filename(item['name'])
         image_link = SKIN_APP_IMAGE_BASE_URL + item['_id']
         folder_name = Folder().load(item['folderId'], force=True)
         redcap_repeat_instance = folder_name['name'].split('_')[0]
-        requests.post(API_URL_REDCAP, data=annotation_instrument_data['data'] % (
+        link_field = 'link_' + remove_all_except_last(VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]], '_')
+        annotation_instrument_data['data'] = annotation_instrument_data['data'] % (
             item['meta']['record_id'],
             redcap_repeat_instance,
-            VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]],
+            link_field,
             image_link,
-        ))
+        )
+        requests.post(API_URL_REDCAP, data=annotation_instrument_data)
     return group_by_name, annotations_dict, access_dict
 
 
@@ -686,32 +689,46 @@ def process_generate_thumbnails_and_permissions(items, group_by_name, annotation
                 print('No user {0} in group'.format(annotation['name']))
 
 
-def export(items):
+def export(items, args):
     folder = Folder().load(args.folder, force=True)
     try:
         os.mkdir(os.path.join(args.datadir, args.foldername))
     except OSError:
         pass  # if the directory exists, just add to it
+    except NameError:
+        pass  # args not passed in, this should be fine
 
     localtz = pytz.timezone("America/Chicago")
     # restrict by start and end dates
     startdate = localtz.localize(args.startdate) if args.startdate else None
     enddate = localtz.localize(args.enddate) + datetime.timedelta(1) if args.enddate else None
+    if 'message' in items and 'AttributeError' in items['message']:
+        raise ValueError('Likely an incorrect folderId was specified')
     for item in items:
-        updated = parser.parse(item['updated'])
+        try:
+            updated = parser.parse(item['updated'])
+        except TypeError:
+            updated = item['updated']
         start_range = startdate and startdate <= updated
         end_range = enddate and enddate >= updated
         if start_range and end_range or start_range and not enddate or end_range and not startdate or not startdate and not enddate:
-            annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + item['_id']
+            annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + str(item['_id'])
+            item_headers = {'Girder-Token': args.token, 'Accept': 'application/json'}
             annotations_blob = requests.get(annotations_access_url, headers=item_headers)
             annotations = json.loads(annotations_blob.content)
             annotations_within_range = []
             for annotation in annotations:
-                try:
-                    updated_anno = parser.parse(annotation['updated'])
-                except TypeError:
-                    updated_anno = parser.parse(annotation['created'])
-                # restrict annotations by date and by user
+                if annotation['updated']:
+                    try:
+                        updated_anno = parser.parse(annotation['updated'])
+                    except TypeError:
+                        updated_anno = annotation['updated']
+                else:
+                    try:
+                        updated_anno = parser.parse(annotation['created'])
+                    except TypeError:
+                        updated_anno = annotation['created']
+                # restrict annotations by date and by user if necessary, not required
                 start_range_anno = startdate and startdate <= updated_anno
                 end_range_anno = enddate and enddate >= updated_anno
                 if start_range_anno and end_range_anno or start_range_anno and not enddate or end_range_anno and not startdate or not startdate and not enddate and (not args.annotator or annotation['annotation']['name'] in args.annotator):
@@ -738,9 +755,10 @@ def export(items):
                     mask_files = os.path.join(args.datadir, args.foldername, record_id, parent_folder_name, 'masks')
                     annotated_files = imgsrc_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'annotated')
                     [make_dir_if_not_exists(f) for f in [imgsrc_files, json_files, mask_files, annotated_files]]
-                    with open(os.path.join(args.datadir, args.foldername, parent_folder['name'], folder['name'], 'json', item['name'] + '.json'), 'wb') as f:
+                    # return os.path.join(args.datadir, 'natiens_pilot', parent_folder['name'], folder['name'], 'json', item['name'] + '.json')
+                    with open(os.path.join(args.datadir, 'natiens_pilot', parent_folder['name'], folder['name'], 'json', item['name'] + '.json'), 'wb') as f:
                         item['annotations'] = [anno for anno in annotations_within_range]
-                        f.write(json.dumps(item))
+                        f.write(json.dumps(item, cls=JsonEncoder))
                 else:
                     try:
                         os.mkdir(os.path.join(args.datadir, args.foldername, 'json'))
@@ -748,7 +766,7 @@ def export(items):
                         pass  # if the directory exists, just add to it
                     with open(os.path.join(args.datadir, args.foldername, 'json', item['name'] + '.json'), 'wb') as f:
                         item['annotations'] = [anno for anno in annotations_within_range]
-                        f.write(json.dumps(item))
+                        f.write(json.dumps(item, cls=JsonEncoder))
     if startdate and enddate:
         range_str = '-' + str(startdate.date()) + '--' + str(enddate.date())
     elif startdate:
@@ -758,7 +776,7 @@ def export(items):
     else:
         range_str = ''
     if args.zip:
-        tar_obj = tarfile.open(os.path.join(args.datadir, args.foldername, folder['name'] + '-' + item['folderId'] + range_str + '.tar.gz'), 'w:gz')
+        tar_obj = tarfile.open(os.path.join(args.datadir, args.foldername, folder['name'] + '-' + str(item['folderId']) + range_str + '.tar.gz'), 'w:gz')
         json_files = glob.glob(os.path.join(args.datadir, args.foldername, 'json', '*.json'))
         [tar_obj.add(json_file) for json_file in json_files]
         tar_obj.close()
@@ -802,56 +820,77 @@ def send_to_redcap():
     # os.environ.get('GIRDER_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN')
 
 
-pilot_ids = set()
-if set(args.operation) & set([
-       PROCESS_OP, PROCESS_BASELINE_OP, PROCESS_NATIENS_OP, EXPORT_OP, EXPORT_NATIENS_OP, STATUS_OP, POLL_ANNOTATIONS_NATIENS_OP
-   ]):
-    item_url = args.url + ITEM_API_URL + '?folderId=' + args.folder + ITEM_QUERY_STRING
-    items = requests.get(item_url, headers=item_headers)
-    items = json.loads(items.content)
-    if 'message' in items:
-        sys.stderr.write(items['message'] + "\n")
-if set(args.operation) & set([INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, POLL_ANNOTATIONS_NATIENS_OP]):
-    current_token = Token().load(args.token, force=True, objectId=False)
-    user = User().load(current_token['userId'], force=True)
+def get_items_from_folder(folder=args.folder):
+    pilot_ids = set()
+    items = []
+    user = None
+    if set(args.operation) & set([
+           PROCESS_OP, PROCESS_BASELINE_OP, PROCESS_NATIENS_OP, EXPORT_OP, EXPORT_NATIENS_OP, STATUS_OP, POLL_ANNOTATIONS_NATIENS_OP
+       ]):
+        item_url = args.url + ITEM_API_URL + '?folderId=' + folder + ITEM_QUERY_STRING
+        items = requests.get(item_url, headers=item_headers)
+        items = json.loads(items.content)
+        if 'message' in items:
+            sys.stderr.write(items['message'] + "\n")
+    if set(args.operation) & set([INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, POLL_ANNOTATIONS_NATIENS_OP]):
+        current_token = Token().load(args.token, force=True, objectId=False)
+        user = User().load(current_token['userId'], force=True)
+
+    return items, user
 
 
-# Get status of annotation layers from SkinApp
-if STATUS_OP in args.operation:
-    get_status(items)
-# Check if new annotations are available in NATIENS to process
-if POLL_ANNOTATIONS_NATIENS_OP in args.operation:
-    pilot_ids, new_last_redcap_pull = poll_annotations_natiens(user)
-    if pilot_ids:
+def remove_all_except_last(string, char):
+    last_index = string.rfind(char)
+    if last_index == -1:
+        return string
+    return string[:last_index].replace(char, '') + char + string[last_index+1:]
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime.datetime):
+            return obj.isoformat()
+        return json.JSONEncoder.default(self, obj)
+
+
+if __name__ == "__main__":
+    items, user = get_items_from_folder()
+    # Get status of annotation layers from SkinApp
+    if STATUS_OP in args.operation:
+        get_status(items)
+    # Check if new annotations are available in NATIENS to process
+    if POLL_ANNOTATIONS_NATIENS_OP in args.operation:
+        pilot_ids, new_last_redcap_pull = poll_annotations_natiens(user)
+        if pilot_ids:
+            get_from_redcap(user)
+            Setting().set(LAST_REDCAP_PULL_KEY, new_last_redcap_pull)
+            for pilot_id in pilot_ids:
+                ingest_folder(user, pilot_id)
+                group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(items)
+                process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict)
+    # Download files from REDCap into an OS folder
+    if GET_FROM_REDCAP_OP in args.operation:
         get_from_redcap(user)
-        Setting().set(LAST_REDCAP_PULL_KEY, new_last_redcap_pull)
-        for pilot_id in pilot_ids:
-            ingest_folder(user, pilot_id)
-            group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(items)
-            process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict)
-# Download files from REDCap into an OS folder
-if GET_FROM_REDCAP_OP in args.operation:
-    get_from_redcap(user)
-# Ingest OS folder into Girder collection folder
-if INGEST_FOLDER_OP in args.operation:
-    ingest_folder(user)
-# creates annotation layers
-if PROCESS_OP in args.operation or PROCESS_BASELINE_OP in args.operation:
-    group_by_name, annotations_dict, access_dict = process_access_helper()
-# Permissions for annotation layers is different for NATIENS
-if PROCESS_NATIENS_OP in args.operation:
-    group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links()
-if PROCESS_BASELINE_OP in args.operation:
-    process_baseline_helper(access_dict)
-# if any kind of processing needs to be done, set permissions
-if any(['process' in op for op in args.operation]):
-    process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict)
-# Exports geoJSON-like files if any kind of export to be done
-if any(['export' in op for op in args.operation]):
-    export(items)
-# Output annotated PNG files using MATLAB from json annotation and input file
-if RENDER_ANNOTATIONS_OP in args.operation:
-    render_annotations()
-# Send the outputted annotated PNGs to REDCap
-if SEND_TO_REDCAP_OP in args.operation:
-    send_to_redcap()
+    # Ingest OS folder into Girder collection folder
+    if INGEST_FOLDER_OP in args.operation:
+        ingest_folder(user)
+    # creates annotation layers
+    if PROCESS_OP in args.operation or PROCESS_BASELINE_OP in args.operation:
+        group_by_name, annotations_dict, access_dict = process_access_helper()
+    # Permissions for annotation layers is different for NATIENS
+    if PROCESS_NATIENS_OP in args.operation:
+        group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(items)
+    if PROCESS_BASELINE_OP in args.operation:
+        process_baseline_helper(access_dict)
+    # if any kind of processing needs to be done, set permissions
+    if any(['process' in op for op in args.operation]):
+        process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict)
+    # Exports geoJSON-like files if any kind of export to be done
+    if any(['export' in op for op in args.operation]):
+        export(items, args)
+    # Output annotated PNG files using MATLAB from json annotation and input file
+    if RENDER_ANNOTATIONS_OP in args.operation:
+        render_annotations()
+    # Send the outputted annotated PNGs to REDCap
+    if SEND_TO_REDCAP_OP in args.operation:
+        send_to_redcap()
