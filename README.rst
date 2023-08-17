@@ -59,6 +59,26 @@ HistomicsTK can be used in two ways:
   
   $ python -m pip install histomicstk
 
+VUMC IT Server Maintenance
+##########################
+The AD group to permit access onto the host is SG-KNK_admin. Users added to that AD group have the ability to sudo to the knkapp application account, i.e. sudo su – knkapp. Sudo functions within the application account can be viewed with the following command: `sudo -l -U knkapp`. Application related files should be stored in the /app001 volume on the host.
+ 
+Additional work to the host should be requested through the Pegasus Request Management module using the VUMC IT LINUX – GENERAL REQUEST form. Be sure to specify the hostname where work is to be performed. LTM work is requested using the Pegasus Request Management forms relating to VUMC IT LINUX – F5 LTM requests. Applications must be fully configured before submitting requests for LTM work. Requested packages or versions not available in Red Hat repositories will have to be installed by the customer within the application volume
+ 
+Server Details:
+###############
+- knk1001ld / 10.158.184.186 (knk_app1_hosts)
+- knk1001lp  / 10.100.128.170 (knk_app1_hosts)
+- knk1002ld / 10.158.188.36 (knk_mongodb_hosts)
+- knk1002lp / 10.100.132.69 (knk_mongodb_hosts)
+ 
+FQDN:
+#####
+* knk1001ld.hs.it.vumc.io
+* knk1001lp.hs.it.vumc.io
+* knk1002ld.hs.it.vumc.io
+* knk1002lp.hs.it.vumc.io
+
 Installation
 ############
   *To install HistomicsTK from source*::
