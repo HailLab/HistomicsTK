@@ -125,10 +125,6 @@ Notes
   access to image analysis pipelines developed as `slicer execution model`_
   CLIs and containerized using Docker.
 
-Server admin
-############
-HistomicsTK is hosted on an AWS instance. Backup images are being created of it.
-
 Skin maintenance
 ################
 To login:
@@ -204,6 +200,48 @@ After making changes to MATLAB script:
     cp ~/run_step1_main_read_json_mask.sh /opt/histomicstk/HistomicsTK/histomicstk/utils/
     cp ~/step1_main_read_json_mask /opt/histomicstk/HistomicsTK/histomicstk/utils/
     JSON_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/json/' BASELINE_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/imgsrc/' ANNOTATED_IMAGES_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/annotated/' MASKS_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/masks/' /opt/histomicstk/HistomicsTK/histomicstk/utils/run_step1_main_read_json_mask.sh /home/ubuntu/matlab/r2021b/mcr
+
+Server admin
+############
+HistomicsTK is hosted on an AWS instance. Backup images are being created of it.
+
+To install, on Amazon Linux instance with a minimum of 120GB SSD and IP restricted networking:
+**********************************************************************************************
+.. code-block:: bash
+
+    sudo yum install git docker python3-pip nginx
+    sudo usermod -aG docker $USER
+    reset
+    sudo service docker start
+    git clone git@github.com:HailLab/HistomicsTK.git  # you'll need to create keys and upload to your GitHub or use a personal access token
+    cd HistomicsTK/
+    pip install -r requirements_dev.txt
+    pip install docker
+    python3 ansible/deploy_docker.py start --mount ~/HistomicsTK/:/opt/histomicstk/HistomicsTK/  # kill command if it appears as though deployment is looping. The containers were still created properly.
+    cp devops/skin.app.vumc.org.conf.example /etc/nginx/sites-enabled/skin.app.vumc.org.conf
+    sudo service nginx restart
+
+On source server:
+-----------------
+.. code-block:: bash
+
+    docker exec $(docker ps -aqf "ancestor=mongo:latest") mongodump --out /root/htkdb
+    docker cp $(docker ps -aqf "ancestor=mongo:latest"):/root/htkdb ~/
+
+On local machine:
+-----------------
+.. code-block:: bash
+
+    # unless access permissions are opened up between servers, it's easiest to use your working computer as an intermediate. If database gets larger than 15GB, this could be space inefficient and require opening up permissions on servers for direct communication
+    scp -r -i ~/.ssh/skin.cer skinold:~/htkdb ~/htkdb
+    scp -r -i ~/.ssh/skin.cer ~/htkdb skinnew:~/htkdb
+
+On destination server:
+----------------------
+.. code-block:: bash
+
+    docker cp ~/htkdb $(docker ps -aqf "ancestor=mongo:latest"):/root/htkdb
+    docker exec $(docker ps -aqf "ancestor=mongo:latest") mongorestore /root/htkdb
 
 Erata
 #####
