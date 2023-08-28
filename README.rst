@@ -227,6 +227,7 @@ On source server:
 
     docker exec $(docker ps -aqf "ancestor=mongo:latest") mongodump --out /root/htkdb
     docker cp $(docker ps -aqf "ancestor=mongo:latest"):/root/htkdb ~/
+    docker cp $(docker ps -aqf "ancestor=dsarchive/histomicstk_main:latest"):/opt/histomicstk/assetstore ~/assetstore
 
 On local machine:
 -----------------
@@ -234,7 +235,9 @@ On local machine:
 
     # unless access permissions are opened up between servers, it's easiest to use your working computer as an intermediate. If database gets larger than 15GB, this could be space inefficient and require opening up permissions on servers for direct communication
     scp -r -i ~/.ssh/skin.cer skinold:~/htkdb ~/htkdb
+    scp -r -i ~/.ssh/skin.cer skinold:~/assetstore ~/assetstore
     scp -r -i ~/.ssh/skin.cer ~/htkdb skinnew:~/htkdb
+    scp -r -i ~/.ssh/skin.cer ~/assetstore skinnew:~/assetstore
 
 On destination server:
 ----------------------
@@ -242,6 +245,7 @@ On destination server:
 
     docker cp ~/htkdb $(docker ps -aqf "ancestor=mongo:latest"):/root/htkdb
     docker exec $(docker ps -aqf "ancestor=mongo:latest") mongorestore /root/htkdb
+    docker cp ~/assetstore $(docker ps -aqf "ancestor=dsarchive/histomicstk_main:latest"):/opt/histomicstk
 
 Erata
 #####
