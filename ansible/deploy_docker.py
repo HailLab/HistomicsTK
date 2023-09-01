@@ -15,9 +15,6 @@ import time
 import uuid
 from distutils.version import LooseVersion
 
-if not (LooseVersion('1.9') <= LooseVersion(docker.version)):
-    raise Exception('docker or docker-py must be >= version 1.9')
-
 
 BaseName = 'histomicstk'
 ImageList = collections.OrderedDict([
@@ -35,13 +32,13 @@ ImageList = collections.OrderedDict([
         'tag': 'dsarchive/girder_worker',
         'name': 'histomicstk_girder_worker',
         'dockerfile': 'Dockerfile-girder-worker',
-        'pinned': 'v0.1.6',
+        'pinned': 'v0.1.7',
     }),
     ('histomicstk', {
         'tag': 'dsarchive/histomicstk_main',
         'name': 'histomicstk_histomicstk',
         'dockerfile': 'Dockerfile-histomicstk',
-        'pinned': 'v0.1.6',
+        'pinned': 'v0.1.7',
     }),
     ('cli', {
         'tag': 'dsarchive/histomicstk',

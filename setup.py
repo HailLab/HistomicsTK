@@ -26,6 +26,9 @@ if __name__ == '__main__':
         packages=[
             'annotateimage'
         ],
+        install_requires=[
+            'nameparser>=1.1.2'
+        ],
         package_data={'annotateimage': ['*.ctf']},
         # Executes the custom code above in order to delete the build area.
         cmdclass={'install': InstallRuntime}

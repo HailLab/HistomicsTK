@@ -7,7 +7,6 @@ from girder.constants import AccessType
 from girder.exceptions import RestException
 # from girder.models.folder import Folder as FolderModel
 from girder.models.item import Item as ItemModel
-from histomicstk import utils
 
 from dateutil import parser
 from PIL import Image
@@ -122,6 +121,8 @@ class SendToRedcapItemResource(ItemResource):
             'fields': 'annotator',
             'forms[0]': 'annotation'
         }
+        # req_users = requests.post('https://redcap.vanderbilt.edu/api/', data=data)
+        from histomicstk import utils
         req_users = requests.post(utils.manage_skin.API_URL_REDCAP, data=data)
         for u in json.loads(req_users.text):
             # Grab the list from the annotator field
@@ -146,6 +147,8 @@ class SendToRedcapItemResource(ItemResource):
             'returnFormat': 'json',
             'filterLogic': '[annotator] = ' + user_id,
         }
+        # req_anno = requests.post('https://redcap.vanderbilt.edu/api/', data=data)
+        from histomicstk import utils
         req_anno = requests.post(utils.manage_skin.API_URL_REDCAP, data=data)
         for a in json.loads(req_anno.text):
             return a
@@ -174,6 +177,7 @@ class SendToRedcapItemResource(ItemResource):
         user = ItemResource().getCurrentUser()
         user_name = user['firstName'] + ' ' + user['lastName']
         # Simulating arguments from manage_skin script
+        from histomicstk import utils
         args = type('obj', (object,), {
             'folder': item['folderId'],
             'foldername': folder['name'],
@@ -181,6 +185,7 @@ class SendToRedcapItemResource(ItemResource):
             'enddate': None,
             'annotator': [user['login']],
             'url': 'https://skin.app.vumc.org/api/v1/',
+            'operation': 'export_natiens',
             'operation': utils.manage_skin.EXPORT_NATIENS_OP,
             'datadir': '/opt/histomicstk_data',
             'token': 'bR1i41zmW301Vu8vR6DA76bzTHUz3CbT6BisLH5CX4B4Fmy65GwaxuyPkYaLbKBd',  # @TODO: I'm sure this can be pulled
