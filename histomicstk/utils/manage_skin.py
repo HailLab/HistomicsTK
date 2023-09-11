@@ -396,17 +396,17 @@ def get_from_redcap(user):
     phi_free_field_names = {}
 
     for r in json.loads(req_records.text):
-        if r['pilot_id']:  # only extract patients which have a pilot ID
+        natiens_id = r['pilot_id'] if 'pilot_id' in r else r['natiens_id']
+        if natiens_id:  # only extract patients which have a pilot ID
             record_id = r['record_id']
             session_id = r['redcap_repeat_instance'] 
-            pilot_id = r['pilot_id']
-            patient_folder_name = record_id + '_' + pilot_id
+            patient_folder_name = record_id + '_' + natiens_id
             session_folder_name = str(r['redcap_repeat_instance']) + '_' + str(datetime.datetime.strptime(r['date_photography'], '%Y-%m-%d').strftime('%y%m%d'))
             make_dir_if_not_exists(os.path.join(args.datadir, args.foldername))
-            make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, pilot_id))
-            make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, pilot_id, str(session_folder_name)))
+            make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id))
+            make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name)))
             # If we've already pulled the files, don't do it again
-            exists = make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, pilot_id, str(session_folder_name), 'imgsrc'))
+            exists = make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc'))
             if args.phi:  # include all fields, regardless of PHI
                 fields_keep = file_fields_photo
             else:
@@ -432,8 +432,8 @@ def get_from_redcap(user):
                         suffix = os.path.splitext(r[field['field']])[1]
                         natiens_id = '_'.join([project_id, r['imaging_session'].rjust(2, '0'), r['imaging_device___1'] + FILE_FIELDS_VECTRA[field['field']]])
                         filename_output = natiens_id + suffix 
-                        print(os.path.join(args.datadir, args.foldername, pilot_id, str(session_folder_name), 'imgsrc', filename_output))
-                        f = open(os.path.join(args.datadir, args.foldername, pilot_id, str(session_folder_name), 'imgsrc', filename_output), 'wb')
+                        print(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc', filename_output))
+                        f = open(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc', filename_output), 'wb')
                         f.write(req.content)
                         f.close()
 
@@ -487,8 +487,14 @@ def poll_annotations_natiens(user):
 
     # for r in json.loads(req_records.text):
     #     pilot_ids.append(r['pilot_id2']
-    pilot_ids = set(r['pilot_id2'] for r in json.loads(req_records.text) if r['pilot_id2']) or set()
-    return pilot_ids, new_last_redcap_pull
+    req_records = json.loads(req_records.text)
+    # In some REDCap databases, natiens_id is called pilot_id2
+    if req_records:
+        natiens_id_field = 'natiens_id' if 'natiens_id' in req_records[0] else 'pilot_id2'
+        natiens_ids = set(r[natiens_id_field] for r in json.loads(req_records.text) if r[natiens_id_field]) or set()
+    else:
+        natiens_ids = set()
+    return natiens_ids, new_last_redcap_pull
 
 
 def set_image_metadata(all_new_image_names, session_folder, user, record_id, session_id):
