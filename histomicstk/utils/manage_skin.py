@@ -20,6 +20,7 @@ API_URL_REDCAP = 'https://redcap.vanderbilt.edu/api/'
 LATEST_ANNOTATION_QUERY_STRING = 'annotation?limit=1&sort=created&sortdir=-1'
 SKIN_APP_IMAGE_BASE_URL = 'https://skin.app.vumc.org/histomicstk#?image='
 LAST_REDCAP_PULL_KEY = 'histomicstk.last_redcap_pull'
+NATIENS_ID_KEY_ORDER = ['natiens_id', 'natiens_id2', 'pilot_id2', 'pilot_id']
 
 PROCESS_OP = 'process'
 EXPORT_OP = 'export'
@@ -396,12 +397,16 @@ def get_from_redcap(user):
     phi_free_field_names = {}
 
     for r in json.loads(req_records.text):
-        natiens_id = r['pilot_id'] if 'pilot_id' in r else r['natiens_id']
+        natiens_id = get_natiens_id(r)
         if natiens_id:  # only extract patients which have a pilot ID
             record_id = r['record_id']
             session_id = r['redcap_repeat_instance'] 
             patient_folder_name = record_id + '_' + natiens_id
-            session_folder_name = str(r['redcap_repeat_instance']) + '_' + str(datetime.datetime.strptime(r['date_photography'], '%Y-%m-%d').strftime('%y%m%d'))
+            try:
+                photography_date = '_' + str(datetime.datetime.strptime(r['date_photography'], '%Y-%m-%d').strftime('%y%m%d'))
+            except ValueError:
+                photography_date = ''
+            session_folder_name = str(r['redcap_repeat_instance']) + photography_date
             make_dir_if_not_exists(os.path.join(args.datadir, args.foldername))
             make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id))
             make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name)))
@@ -426,12 +431,13 @@ def get_from_redcap(user):
                 if int(r['day_0___0']) or int(r['day_reepithelization___0']) and (not exists or args.ignoreexisting):
                     req = requests.post(API_URL_REDCAP, data=field)
                     # Project ID is different for pilot projects than NATIENS
-                    project_id = r['pilot_id'] if 'ilot' in r['pilot_id'] else 'NAT' + '_' + r['site']
+                    pilot_field_name = get_natiens_id_field_name(r)
+                    project_id = r[pilot_field_name] if 'ilot' in pilot_field_name else 'NAT' + '_' + r['site']
                     filename_original = re.findall(filename_regex, req.headers['Content-Type'])
                     if filename_original:
                         suffix = os.path.splitext(r[field['field']])[1]
-                        natiens_id = '_'.join([project_id, r['imaging_session'].rjust(2, '0'), r['imaging_device___1'] + FILE_FIELDS_VECTRA[field['field']]])
-                        filename_output = natiens_id + suffix 
+                        file_base_name = '_'.join([project_id, r['imaging_session'].rjust(2, '0'), r['imaging_device___1'] + FILE_FIELDS_VECTRA[field['field']]])
+                        filename_output = file_base_name + suffix 
                         print(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc', filename_output))
                         f = open(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc', filename_output), 'wb')
                         f.write(req.content)
@@ -457,6 +463,22 @@ def get_status(items):
                 print("Skipped annotation " + annotation['_id'])
     print(completed_annotations)
     print(completed_annotations_cts)
+
+
+def get_key_in_order(dict, keys):
+    return next((key for key in keys if key in dict), None)
+
+
+def get_value_in_order(dict, keys):
+    return next((dict[key] for key in keys if key in dict), None)
+
+
+def get_natiens_id_field_name(dict):
+    return get_key_in_order(dict, NATIENS_ID_KEY_ORDER)
+
+
+def get_natiens_id(dict):
+    return get_value_in_order(dict, NATIENS_ID_KEY_ORDER)
 
 
 def poll_annotations_natiens(user):
@@ -490,8 +512,8 @@ def poll_annotations_natiens(user):
     req_records = json.loads(req_records.text)
     # In some REDCap databases, natiens_id is called pilot_id2
     if req_records:
-        natiens_id_field = 'natiens_id' if 'natiens_id' in req_records[0] else 'pilot_id2'
-        natiens_ids = set(r[natiens_id_field] for r in json.loads(req_records.text) if r[natiens_id_field]) or set()
+        natiens_id_field = get_natiens_id_field_name(req_records[0])
+        natiens_ids = set(r[natiens_id_field] for r in req_records if r[natiens_id_field]) or set()
     else:
         natiens_ids = set()
     return natiens_ids, new_last_redcap_pull
@@ -595,6 +617,7 @@ def process_natiens_create_annotation_layers_update_links(items):
     for a in json.loads(req_annotations.text):
         if a['annotator']:
             annotator = annotators[a['annotator']]
+            from nameparser import HumanName
             annotator_names.append(HumanName(annotator))
     # TODO: Can't find a method within User() to filter to a specific user, so just grabbing all and manually filtering
     annotator_user = [u for u in User().list() if u['firstName'] in [n['first'] for n in annotator_names] and u['lastName'] in [n['last'] for n in annotator_names]]
