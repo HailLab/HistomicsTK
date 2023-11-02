@@ -18,7 +18,7 @@ ACCESS_QUERY_STRING = '&public=false&recurse=true&progress=false'
 ANNOTATION = 'annotation/'
 API_URL_REDCAP = 'https://redcap.vanderbilt.edu/api/'
 LATEST_ANNOTATION_QUERY_STRING = 'annotation?limit=1&sort=created&sortdir=-1'
-SKIN_APP_IMAGE_BASE_URL = 'https://skin.app.vumc.org/histomicstk#?image='
+SKIN_APP_IMAGE_BASE_URL = 'histomicstk#?image='
 LAST_REDCAP_PULL_KEY = 'histomicstk.last_redcap_pull'
 NATIENS_ID_KEY_ORDER = ['natiens_id', 'natiens_id2', 'pilot_id2', 'pilot_id']
 
@@ -142,7 +142,7 @@ def merge_dicts(x, y):
 
 
 def get_all_files(folderPath):
-        return [f for f in os.listdir(folderPath) if os.path.isfile(os.path.join(folderPath, f))]
+    return [f for f in os.listdir(folderPath) if os.path.isfile(os.path.join(folderPath, f))]
 
 
 def get_all_folders(folderPath):
@@ -407,6 +407,7 @@ def get_from_redcap(user):
             except ValueError:
                 photography_date = ''
             session_folder_name = str(r['redcap_repeat_instance']) + photography_date
+            make_dir_if_not_exists(os.path.join(args.datadir))
             make_dir_if_not_exists(os.path.join(args.datadir, args.foldername))
             make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id))
             make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name)))
@@ -448,7 +449,7 @@ def get_status(items):
     completed_annotations_cts = {}
     completed_annotations = {}
     for item in items:
-        annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + item['_id']
+        annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + str(item['_id'])
         annotations = json.loads(requests.get(annotations_access_url, headers=item_headers).content)
         for annotation in annotations:
             try:
@@ -520,6 +521,7 @@ def poll_annotations_natiens(user):
 
 
 def set_image_metadata(all_new_image_names, session_folder, user, record_id, session_id):
+    items = []
     for filepath in all_new_image_names:
         item_file = upload_file(
             folder=session_folder,
@@ -527,29 +529,37 @@ def set_image_metadata(all_new_image_names, session_folder, user, record_id, ses
             user=user,
         )
         # set the record_id and session_id in metadata for access in ingestion
-        Item().setMetadata(Item().load(item_file['itemId'], user=user), {'record_id': record_id, 'session_id': session_id})
+        item = Item().load(item_file['itemId'], user=user)
+        Item().setMetadata(item, {'record_id': record_id, 'session_id': session_id})
+        if item:
+            items.append(item)
+    return items
 
 
 def ingest_folder_sessions(record_folder):
     record_id = record_folder['name']
+    items = []
     for session_id in os.listdir(os.path.join(args.datadir, args.foldername, record_id)):
         session_folder = get_or_create_girder_folder(record_folder, session_id, user, 'folder')
         all_item_names = [i['name'] for i in Folder().childItems(folder=session_folder)]
         # only upload new images
         all_new_image_names = [f for f in glob.glob(os.path.join(args.datadir, args.foldername, record_id, session_id, 'imgsrc', '*')) if f not in all_item_names]
-        set_image_metadata(all_new_image_names, session_folder, user, record_id, session_id)
+        items = items + set_image_metadata(all_new_image_names, session_folder, user, record_id, session_id)
+    return items
 
 
 def ingest_folder(user, pilot_id=None):
     collection = Collection().load(args.collection, force=True)
     parent_folder = get_or_create_girder_folder(collection, args.foldername, user)
+    items = []
     if pilot_id:
         folder_names = [os.path.join(args.datadir, args.foldername, pilot_id)]
     else:
         folder_names = os.listdir(os.path.join(args.datadir, args.foldername))
     for record_path in folder_names:
         record_folder = get_or_create_girder_folder(parent_folder, os.path.basename(record_path), user, 'folder')
-        ingest_folder_sessions(record_folder)
+        items = items + ingest_folder_sessions(record_folder)
+    return items
 
 
 def process_access_helper():
@@ -601,6 +611,7 @@ def process_access_helper():
 
 
 def process_natiens_create_annotation_layers_update_links(items):
+    from nameparser import HumanName
     group_url = args.url + GROUP_API_URL + '/' + args.workergroup + '/member?ignore' + ITEM_QUERY_STRING
     group = requests.get(group_url, headers=item_headers)
     group = json.loads(group.content)
@@ -652,7 +663,7 @@ def process_natiens_create_annotation_layers_update_links(items):
     for item in items:
         annotation_instrument_data['data'] = '[{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":"%s","field_name":"%s","value":"%s"}]'
         pilot_id, site_id, imaging_session, imaging_device_and_vectra = parse_filename(item['name'])
-        image_link = SKIN_APP_IMAGE_BASE_URL + item['_id']
+        image_link = args.url + SKIN_APP_IMAGE_BASE_URL + str(item['_id'])
         folder_name = Folder().load(item['folderId'], force=True)
         redcap_repeat_instance = folder_name['name'].split('_')[0]
         link_field = 'link_' + remove_all_except_last(VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]], '_')
@@ -683,21 +694,21 @@ def process_generate_thumbnails_and_permissions(items, group_by_name, annotation
     access = requests.put(access_url, headers=item_headers)
 
     for item in items:
-        image_url = args.url + ITEM_API_URL + '/' + item['_id'] + '/files' + '?ignore' + ITEM_QUERY_STRING
+        image_url = args.url + ITEM_API_URL + '/' + str(item['_id']) + '/files' + '?ignore' + ITEM_QUERY_STRING
         image_headers = {'Girder-Token': args.token, 'Accept': 'application/json'}
         image = requests.get(image_url, headers=image_headers)
         image = json.loads(image.content)
         file_id = image[0]['_id']
 
-        largeimage_url = args.url + ITEM_API_URL + '/' + item['_id'] + '/tiles?fileId=' + file_id + LARGEIMAGE_QUERY_STRING
+        largeimage_url = args.url + ITEM_API_URL + '/' + str(item['_id']) + '/tiles?fileId=' + file_id + LARGEIMAGE_QUERY_STRING
         requests.post(largeimage_url, headers=largeimage_headers)
 
-        annotations_url = args.url + ANNOTATION_API_URL + '?itemId=' + item['_id'] + ITEM_QUERY_STRING
+        annotations_url = args.url + ANNOTATION_API_URL + '?itemId=' + str(item['_id']) + ITEM_QUERY_STRING
         annotations = requests.get(annotations_url, headers=item_headers)
         annotations = json.loads(annotations.content)
         # [requests.delete(args.url + ANNOTATION_API_URL + '/' + a['_id'], headers=item_headers) for a in annotations]
         annotations_details = {a['_id']: a['annotation'] for a in annotations}
-        annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + item['_id']
+        annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + str(item['_id'])
         requests.post(annotations_access_url, headers=item_headers, data=json.dumps([a for a in annotations_dict if a not in annotations_details.values()]))
         annotation_access_update_url = args.url + ANNOTATION
         for aid, annotation in annotations_details.iteritems():
@@ -896,7 +907,8 @@ if __name__ == "__main__":
             get_from_redcap(user)
             Setting().set(LAST_REDCAP_PULL_KEY, new_last_redcap_pull)
             for pilot_id in pilot_ids:
-                ingest_folder(user, pilot_id)
+                # grabbing new items from ingested folder
+                items = ingest_folder(user, pilot_id)
                 group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(items)
                 process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict)
     # Download files from REDCap into an OS folder

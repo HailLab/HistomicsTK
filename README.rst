@@ -246,6 +246,7 @@ On destination server:
     docker cp ~/htkdb $(docker ps -aqf "ancestor=mongo:latest"):/root/htkdb
     docker exec $(docker ps -aqf "ancestor=mongo:latest") mongorestore /root/htkdb
     docker cp ~/assetstore $(docker ps -aqf "ancestor=dsarchive/histomicstk_main:latest"):/opt/histomicstk
+    docker exec $(docker ps -aqf "ancestor=dsarchive/histomicstk_main:latest") sudo mkdir /opt/histomicstk_data && sudo chown -R root:ubuntu /opt/histomicstk_data/ && sudo chmod -R g+w /opt/histomicstk_data/ && sudo apt-get update && sudo apt install cron && sudo systemctl enable cron && pip install nameparser && mkdir /opt/histomicstk/girder/clients/web/static/timeme.js && cd /opt/histomicstk/girder/clients/web/static/timeme.js && curl -O https://cdnjs.cloudflare.com/ajax/libs/TimeMe.js/2.0.0/timeme.min.js && cd /opt/histomicstk/girder/clients/web/static/ && curl -O https://wurfl.io/wurfl.js
 
 Erata
 #####
