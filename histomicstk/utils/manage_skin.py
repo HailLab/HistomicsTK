@@ -109,19 +109,6 @@ FILE_FIELDS_VECTRA = {
 }
 VECTRA_FILE_FIELDS = dict([(v, k) for k, v in FILE_FIELDS_VECTRA.items()])
 
-annotation_instrument_data = {
-    'token': 'E82B46ACB5A4ECD0E5B2579507445034',
-    'content': 'record',
-    'action': 'import',
-    'format': 'json',
-    'type': 'eav',
-    'overwriteBehavior': 'overwrite',
-    'forceAutoNumber': 'false',
-    'data': '{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":%s,"field_name":"%s","value":"%s"}',
-    'returnContent': 'count',
-    'returnFormat': 'json'
-}
-
 def meta_annotator_only(meta, annotator):
     for m in meta:
         if annotator in m:
@@ -243,6 +230,19 @@ if __name__ == '__main__':
         'fields': 'annotator',
         'forms': 'annotation',
     }
+    annotation_instrument_data = {
+        'token': args.redcaptoken,
+        'content': 'record',
+        'action': 'import',
+        'format': 'json',
+        'type': 'eav',
+        'overwriteBehavior': 'overwrite',
+        'forceAutoNumber': 'false',
+        'data': '{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":%s,"field_name":"%s","value":"%s"}',
+        'returnContent': 'count',
+        'returnFormat': 'json'
+    }
+
 
 def upload_file(folder, path, user):
     """
@@ -529,6 +529,8 @@ def ingest_folder_sessions(record_folder):
 def ingest_folder(user, pilot_id=None):
     collection = Collection().load(args.collection, force=True)
     parent_folder = get_or_create_girder_folder(collection, args.foldername, user)
+    # Need to know what REDCap form to send this back to, so store the redcap token
+    Folder().setMetadata(parent_folder, {'redcaptoken': args.redcaptoken})
     items = []
     if pilot_id:
         folder_names = [os.path.join(args.datadir, args.foldername, pilot_id)]

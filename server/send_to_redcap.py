@@ -185,10 +185,9 @@ class SendToRedcapItemResource(ItemResource):
             'enddate': None,
             'annotator': [user['login']],
             'url': 'https://skin.app.vumc.org/api/v1/',
-            'operation': 'export_natiens',
             'operation': utils.manage_skin.EXPORT_NATIENS_OP,
             'datadir': '/opt/histomicstk_data',
-            'token': 'bR1i41zmW301Vu8vR6DA76bzTHUz3CbT6BisLH5CX4B4Fmy65GwaxuyPkYaLbKBd',  # @TODO: I'm sure this can be pulled
+            'token': os.environ.get('GIRDER_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN'),
             'zip': True,
         })
         utils.manage_skin.export([item], args)
