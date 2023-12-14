@@ -1,16 +1,22 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import
 
-# import sub-packages to support nested calls
+
 from . import utils  # must be imported before other packages
+# import sub-packages to support nested calls
+try:
+    from . import segmentation  # must be imported before features
+    from . import features
+    from . import filters
+    from . import preprocessing
+    from . import annotations_and_masks
+    from . import saliency
+except ImportError:
+    pass  # may not be necessary for certain usages such as scripts
 
-from . import segmentation  # must be imported before features
 
-from . import features
-from . import filters
-from . import preprocessing
-from . import annotations_and_masks
-from . import saliency
+BASE_URL = 'http://ec2-54-92-211-5.compute-1.amazonaws.com/'
+API_URL_REDCAP = 'https://redcap.vanderbilt.edu/api/'
 
 # list out things that are available for public use
 __all__ = (

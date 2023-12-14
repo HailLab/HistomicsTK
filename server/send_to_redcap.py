@@ -32,31 +32,28 @@ class SendToRedcapItemResource(ItemResource):
         apiRoot.item.route('POST', (':id', ':redcaptoken', 'send_to_redcap'), self.send_to_redcap)
 
     def _parse_filename(self, filename):
+        FIDELITY_LO = 'lo'
         name_constituents = filename.split('_')
-        pilot_id = None
+        record_id = None
         site_id = None
+        fidelity = FIDELITY_LO
         if len(name_constituents) == 3:
-            pilot_id, imaging_session, imaging_device_and_vectra = name_constituents
+            record_id, imaging_session, imaging_device_and_vectra = name_constituents
         elif len(name_constituents) == 4:
-            _, site_id, imaging_session, imaging_device_and_vectra = name_constituents
+            record_id, site_id, imaging_session, imaging_device_and_vectra = name_constituents
+        elif len(name_constituents) == 5:
+            record_id, site_id, imaging_session, fidelty, imaging_device_and_vectra = name_constituents
         imaging_device_and_vectra = os.path.splitext(imaging_device_and_vectra)[0]
-        return pilot_id, site_id, imaging_session, imaging_device_and_vectra
+        return record_id, site_id, imaging_session, imaging_device_and_vectra, fidelity
 
     def _render_annotations(self, item, folder):
-        URL = 'https://skin.app.vumc.org/api/v1/'
+        URL = 'http://ec2-54-92-211-5.compute-1.amazonaws.com/api/v1/'
         # URL = 'https://skin.app.vumc.org/api/v1/'
         MULTIPLE_ANNOTATIONS = 'annotation/item/'
-        TOKEN = getCurrentToken()['_id']
+        GIRDER_TOKEN = getCurrentToken()['_id']
         item_id = str(item['_id'])
-        item_headers = {'Girder-Token': TOKEN, 'Accept': 'application/json'}
+        item_headers = {'Girder-Token': GIRDER_TOKEN, 'Accept': 'application/json'}
         base_dir = '/opt/histomicstk_data/'
-        export_dir = 'natiens_pilot'
-        # export_dir = 'export-annotated'
-        export_path = os.path.join(base_dir, export_dir)
-        try:
-            os.mkdir(export_path)
-        except OSError:
-            pass  # if the directory exists, just add to it
 
         updated = item['updated']
         localtz = pytz.timezone("America/Chicago")
@@ -64,27 +61,35 @@ class SendToRedcapItemResource(ItemResource):
         annotations_blob = requests.get(annotations_access_url, headers=item_headers)
         annotations = json.loads(annotations_blob.content)
         meta_annotations_only = dict()
+        project_folder_name = ''
         if annotations and item and 'meta' in item:
             for m in item['meta']:
                 for annotator in annotations:
                     if annotator['annotation']['name'] in m:
                          meta_annotations_only[m] = item['meta'][m]
             item['meta'] = meta_annotations_only
-            pilot_id, site_id, imaging_session, imaging_device_and_vectra = self._parse_filename(item['name'])
+            record_id, site_id, imaging_session, imaging_device_and_vectra, fidelity = self._parse_filename(item['name'])
             # Father session_id and record_id from folder structure since it's not contained in the file name
             folder_child = FolderResource().load(str(item['folderId']), force=True)
             folder_name = folder_child['name']
             session_id = folder_name.split('_')[0]
             parent_folder = FolderResource().load(folder['parentId'], force=True)
             parent_folder_name = parent_folder['name']
-            record_id = parent_folder['name'].split('_')[0]
-
-            parent_folder = os.path.join(base_dir, export_dir, parent_folder_name)
-            item_folder = os.path.join(base_dir, export_dir, parent_folder_name, folder_name)
-            imgsrc_files = os.path.join(base_dir, export_dir, parent_folder_name, folder_name, 'imgsrc')
-            json_files = os.path.join(base_dir, export_dir, parent_folder_name, folder_name, 'json')
-            mask_files = os.path.join(base_dir, export_dir, parent_folder_name, folder_name, 'masks')
-            annotated_files = os.path.join(base_dir, export_dir, parent_folder_name, folder_name, 'annotated')
+            # record_id = parent_folder['name'].split('_')[0]
+            if not project_folder_name:  # Only need to set project folder once
+                project_folder = FolderResource().load(parent_folder['parentId'], force=True)
+                project_folder_name = project_folder['name']
+                export_path = os.path.join(base_dir, project_folder_name)
+                try:
+                    os.mkdir(export_path)
+                except OSError:
+                    pass  # if the directory exists, just add to it
+            parent_folder = os.path.join(base_dir, project_folder_name, parent_folder_name)
+            item_folder = os.path.join(base_dir, project_folder_name, parent_folder_name, folder_name)
+            imgsrc_files = os.path.join(base_dir, project_folder_name, parent_folder_name, folder_name, 'imgsrc')
+            json_files = os.path.join(base_dir, project_folder_name, parent_folder_name, folder_name, 'json')
+            mask_files = os.path.join(base_dir, project_folder_name, parent_folder_name, folder_name, 'masks')
+            annotated_files = os.path.join(base_dir, project_folder_name, parent_folder_name, folder_name, 'annotated')
             [self._make_dir_if_not_exists(f) for f in [parent_folder, item_folder, imgsrc_files, json_files, mask_files, annotated_files]]
             # with open(os.path.join(base_dir, export_dir, parent_folder_name, folder_name, 'json', str(item['name']) + '.json'), 'wb') as f:
             #     item['annotations'] = [anno for anno in annotations]
@@ -122,8 +127,8 @@ class SendToRedcapItemResource(ItemResource):
             'forms[0]': 'annotation'
         }
         # req_users = requests.post('https://redcap.vanderbilt.edu/api/', data=data)
-        from histomicstk import utils
-        req_users = requests.post(utils.manage_skin.API_URL_REDCAP, data=data)
+        from histomicstk import API_URL_REDCAP
+        req_users = requests.post(API_URL_REDCAP, data=data)
         for u in json.loads(req_users.text):
             # Grab the list from the annotator field
             if u['field_name'] == 'annotator':
@@ -148,8 +153,8 @@ class SendToRedcapItemResource(ItemResource):
             'filterLogic': '[annotator] = ' + user_id,
         }
         # req_anno = requests.post('https://redcap.vanderbilt.edu/api/', data=data)
-        from histomicstk import utils
-        req_anno = requests.post(utils.manage_skin.API_URL_REDCAP, data=data)
+        from histomicstk import API_URL_REDCAP
+        req_anno = requests.post(API_URL_REDCAP, data=data)
         for a in json.loads(req_anno.text):
             return a
 
@@ -170,30 +175,38 @@ class SendToRedcapItemResource(ItemResource):
         .errorResponse('Item is empty or does not exist', code=404)
     )
     def send_to_redcap(self, item, redcaptoken):
+        GIRDER_TOKEN = getCurrentToken()['_id']
+        # study name is not passed in, so walk up folder directory to get it
         folder = FolderResource().load(str(item['folderId']), force=True)
-        (record_id, annotated_path_jpg) = self._render_annotations(item, folder)
+        session_folder = FolderResource().load(folder['parentId'], force=True)
+        study_folder = FolderResource().load(session_folder['parentId'], force=True)
+        study_name = study_folder['name']
         vectra = item['name'].split('_')[-1][1:3]  # parse filename for vectra
         record_name = item['name'].split('_')[0]  # parse filename for record name
         user = ItemResource().getCurrentUser()
         user_name = user['firstName'] + ' ' + user['lastName']
         # Simulating arguments from manage_skin script
-        from histomicstk import utils
+        # from histomicstk.utils.manage_skin import EXPORT_NATIENS_OP, VECTRA_FILE_FIELDS, export
+        from histomicstk.utils import manage_skin
         args = type('obj', (object,), {
             'folder': item['folderId'],
-            'foldername': folder['name'],
+            'foldername': study_name,
             'startdate': None,
             'enddate': None,
             'annotator': [user['login']],
-            'url': 'https://skin.app.vumc.org/api/v1/',
-            'operation': utils.manage_skin.EXPORT_NATIENS_OP,
+            'url': 'http://ec2-54-92-211-5.compute-1.amazonaws.com/api/v1/',
+            'operation': [manage_skin.EXPORT_NATIENS_OP],
             'datadir': '/opt/histomicstk_data',
-            'token': os.environ.get('GIRDER_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN'),
+            'token': GIRDER_TOKEN,
             'zip': True,
         })
-        utils.manage_skin.export([item], args)
+        manage_skin.export([item], args)  # generate json files so annotation images can be rendered
+        # return self._render_annotations(item, folder)
+        (record_id, annotated_path_jpg) = self._render_annotations(item, folder)
+        # return vars(args)
         instance_number = self._get_instance_number(redcaptoken, record_name, user_name)
 
-        field = utils.manage_skin.VECTRA_FILE_FIELDS[vectra] + '1'  # Annotation fields end with a 1
+        field = manage_skin.VECTRA_FILE_FIELDS[vectra] + '1'  # Annotation fields end with a 1
         fields_records_upload = {
             'token': redcaptoken,
             'content': 'file',
@@ -204,9 +217,10 @@ class SendToRedcapItemResource(ItemResource):
         }
         # if 'meta' in item and 'record_id' in item['meta']:
         fields_records_upload['record'] = record_name
+        from histomicstk import API_URL_REDCAP
         with open(annotated_path_jpg, 'rb') as f:
-            # return (annotated_path_jpg, utils.manage_skin.API_URL_REDCAP, fields_records_upload, f)
-            req = requests.post(utils.manage_skin.API_URL_REDCAP, data=fields_records_upload, files={'file': f})
+            # return (annotated_path_jpg, API_URL_REDCAP, fields_records_upload, f)
+            req = requests.post(API_URL_REDCAP, data=fields_records_upload, files={'file': f})
             # return fields_records_upload
             return req.text
         # groups = [str(g) for g in user.get('groups', [])]

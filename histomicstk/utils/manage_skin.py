@@ -1,5 +1,28 @@
 import os
+import json
 
+import argparse
+import datetime
+import pytz
+import urllib
+import requests
+import sys
+import glob
+import re
+import tarfile
+import time
+import inspect
+from dateutil import parser
+
+from girder.models.setting import Setting
+from girder.models.upload import Upload
+from girder.api.v1.item import Folder
+from girder.models.token import Token
+from girder.models.user import User
+from girder.models.item import Item
+from girder.models.collection import Collection
+from girder.exceptions import ValidationException
+from girder.utility import setting_utilities, JsonEncoder
 
 # scan images and create thumbnails
 # set permission of image
@@ -21,6 +44,8 @@ LATEST_ANNOTATION_QUERY_STRING = 'annotation?limit=1&sort=created&sortdir=-1'
 SKIN_APP_IMAGE_BASE_URL = 'histomicstk#?image='
 LAST_REDCAP_PULL_KEY = 'histomicstk.last_redcap_pull'
 NATIENS_ID_KEY_ORDER = ['natiens_id', 'natiens_id2', 'pilot_id2', 'pilot_id']
+FIDELITY_LO = 'lo'
+FIDELITY_HI = 'hi'
 
 PROCESS_OP = 'process'
 EXPORT_OP = 'export'
@@ -147,45 +172,25 @@ def parse_filename(filename):
     name_constituents = filename.split('_')
     pilot_id = None
     site_id = None
+    fidelity = FIDELITY_LO
     if len(name_constituents) == 3:
         pilot_id, imaging_session, imaging_device_and_vectra = name_constituents
     elif len(name_constituents) == 4:
-        _, site_id, imaging_session, imaging_device_and_vectra = name_constituents
+        pilot_id, site_id, imaging_session, imaging_device_and_vectra = name_constituents
+    elif len(name_constituents) == 5:
+        pilot_id, site_id, imaging_session, fidelty, imaging_device_and_vectra = name_constituents
     imaging_device_and_vectra = os.path.splitext(imaging_device_and_vectra)[0]
-    return pilot_id, site_id, imaging_session, imaging_device_and_vectra
+    return pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity
 
 
 if __name__ == '__main__':
-    import argparse
-    import datetime
-    import pytz
-    import urllib
-    import requests
-    import json
-    import sys
-    import glob
-    import re
-    import tarfile
-    import time
-    import inspect
-    from dateutil import parser
-
-    from girder.models.setting import Setting
-    from girder.models.upload import Upload
-    from girder.api.v1.item import Folder
-    from girder.models.token import Token
-    from girder.models.user import User
-    from girder.models.item import Item
-    from girder.models.collection import Collection
-    from girder.exceptions import ValidationException
-    from girder.utility import setting_utilities, JsonEncoder
 
     argparser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     argparser.add_argument('-t', '--token', type=str, default=os.environ.get('GIRDER_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN'),
                            help='Girder token for access')
     argparser.add_argument('-r', '--redcaptoken', type=str, default=os.environ.get('REDCAP_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN'),
                            help='REDCap token for access')
-    argparser.add_argument('-u', '--url', type=str, default='https://skin.app.vumc.org/api/v1/',
+    argparser.add_argument('-u', '--url', type=str, default='http://ec2-54-92-211-5.compute-1.amazonaws.com/api/v1/',
                            help='Url for histomicsTK server')
     argparser.add_argument('-f', '--folder', type=str, default='', help='Folder images are stored in for processing')
     argparser.add_argument('-n', '--foldername', type=str, default='unnamed', help='Name of new folder')
@@ -433,7 +438,7 @@ def get_from_redcap(user):
                     req = requests.post(API_URL_REDCAP, data=field)
                     # Project ID is different for pilot projects than NATIENS
                     pilot_field_name = get_natiens_id_field_name(r)
-                    project_id = r[pilot_field_name] if 'ilot' in pilot_field_name else 'NAT' + '_' + r['site']
+                    project_id = r[pilot_field_name] if 'ilot' in pilot_field_name else r['record_id'] + '_' + r['site']
                     filename_original = re.findall(filename_regex, req.headers['Content-Type'])
                     if filename_original:
                         suffix = os.path.splitext(r[field['field']])[1]
@@ -664,11 +669,15 @@ def process_natiens_create_annotation_layers_update_links(items):
     # Update links to images
     for item in items:
         annotation_instrument_data['data'] = '[{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":"%s","field_name":"%s","value":"%s"}]'
-        pilot_id, site_id, imaging_session, imaging_device_and_vectra = parse_filename(item['name'])
+        pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity = parse_filename(item['name'])
         image_link = args.url + SKIN_APP_IMAGE_BASE_URL + str(item['_id'])
         folder_name = Folder().load(item['folderId'], force=True)
         redcap_repeat_instance = folder_name['name'].split('_')[0]
-        link_field = 'link_' + remove_all_except_last(VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]], '_')
+        try:
+            link_field = 'link_' + remove_all_except_last(VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]], '_')
+        except KeyError:
+            print("Failed to parse filename.")
+            print(pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity)
         annotation_instrument_data['data'] = annotation_instrument_data['data'] % (
             item['meta']['record_id'],
             redcap_repeat_instance,
@@ -785,23 +794,26 @@ def export(items, args):
                              meta_annotations_only[m] = item['meta'][m]
                 item['meta'] = meta_annotations_only
                 if EXPORT_NATIENS_OP in args.operation:
-                    pilot_id, site_id, imaging_session, imaging_device_and_vectra = parse_filename(item['name'])
+                    pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity = parse_filename(item['name'])
                     # Father session_id and record_id from folder structure since it's not contained in the file name
                     folder_child = Folder().load(item['folderId'], force=True)
                     folder_name = folder_child['name']
                     session_id = folder_name.split('_')[0]
                     parent_folder = Folder().load(folder['parentId'], force=True)
                     parent_folder_name = parent_folder['name']
-                    record_id = parent_folder['name'].split('_')[0]
+                    # record_id = parent_folder['name'].split('_')[0]  this wasn't giving expected behavior on natiens_practice
+                    record_id = parent_folder['name']
 
                     imgsrc_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'imgsrc')
                     json_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'json')
-                    mask_files = os.path.join(args.datadir, args.foldername, record_id, parent_folder_name, 'masks')
-                    annotated_files = imgsrc_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'annotated')
+                    mask_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'masks')
+                    annotated_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'annotated')
                     [make_dir_if_not_exists(f) for f in [imgsrc_files, json_files, mask_files, annotated_files]]
                     # return os.path.join(args.datadir, 'natiens_pilot', parent_folder['name'], folder['name'], 'json', item['name'] + '.json')
-                    with open(os.path.join(args.datadir, 'natiens_pilot', parent_folder['name'], folder['name'], 'json', item['name'] + '.json'), 'wb') as f:
+                    # import pdb; pdb.set_trace()
+                    with open(os.path.join(args.datadir, args.foldername, parent_folder['name'], folder['name'], 'json', item['name'] + '.json'), 'wb') as f:
                         item['annotations'] = [anno for anno in annotations_within_range]
+                        # output json file
                         f.write(json.dumps(item, cls=JsonEncoder))
                 else:
                     try:
@@ -864,7 +876,7 @@ def send_to_redcap():
     # os.environ.get('GIRDER_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN')
 
 
-def get_items_from_folder(folder=args.folder):
+def get_items_from_folder(folder):
     pilot_ids = set()
     items = []
     user = None
@@ -878,7 +890,10 @@ def get_items_from_folder(folder=args.folder):
             sys.stderr.write(items['message'] + "\n")
     if set(args.operation) & set([INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, POLL_ANNOTATIONS_NATIENS_OP]):
         current_token = Token().load(args.token, force=True, objectId=False)
-        user = User().load(current_token['userId'], force=True)
+        try:
+            user = User().load(current_token['userId'], force=True)
+        except TypeError:
+            raise TypeError("Ensure user token is still active.")
 
     return items, user
 
@@ -898,13 +913,14 @@ class DateTimeEncoder(json.JSONEncoder):
 
 
 if __name__ == "__main__":
-    items, user = get_items_from_folder()
+    items, user = get_items_from_folder(args.folder)
     # Get status of annotation layers from SkinApp
     if STATUS_OP in args.operation:
         get_status(items)
     # Check if new annotations are available in NATIENS to process
     if POLL_ANNOTATIONS_NATIENS_OP in args.operation:
         pilot_ids, new_last_redcap_pull = poll_annotations_natiens(user)
+        pilot_ids = ['NAT-01-JC']  # import pdb; pdb.set_trace() REMOVE THIS
         if pilot_ids:
             get_from_redcap(user)
             Setting().set(LAST_REDCAP_PULL_KEY, new_last_redcap_pull)
