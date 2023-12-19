@@ -3,6 +3,7 @@ import _ from 'underscore';
 import events from 'girder/events';
 import Panel from 'girder_plugins/slicer_cli_web/views/Panel';
 import { getCurrentUser } from 'girder/auth';
+import { restRequest } from 'girder/rest';
 
 import StyleCollection from '../collections/StyleCollection';
 import StyleModel from '../models/StyleModel';
@@ -21,7 +22,7 @@ var DrawWidget = Panel.extend({
         'click .h-delete-element': 'deleteElement',
         'click .h-draw': 'drawElement',
         'click .h-pan': 'drawElement',
-        'click .h-ok': 'noGvhd',
+        'click .h-nogvhd': 'nogvhd',
         'click .h-unconfident': 'unconfident',
         'click .h-skin-survey': 'skin_survey',
         'change .h-style-group': '_setStyleGroup',
@@ -107,6 +108,9 @@ var DrawWidget = Panel.extend({
         });
         if ('meta' in item.responseJSON && 'unconfident-' + this.annotation.attributes.annotation.name.replace(/\./g, '') in item.responseJSON.meta) {
             unconfident = !!item.responseJSON.meta['unconfident-' + this.annotation.attributes.annotation.name.replace(/\./g, '')];
+        }
+        if ('meta' in item.responseJSON && 'nogvhd-' + this.annotation.attributes.annotation.name.replace(/\./g, '') in item.responseJSON.meta) {
+            nogvhd = !!item.responseJSON.meta['nogvhd-' + this.annotation.attributes.annotation.name.replace(/\./g, '')];
         }
         var survey_submit = false;
         const user = getCurrentUser();
@@ -271,7 +275,7 @@ var DrawWidget = Panel.extend({
      * @param {jQuery.Event} [evt] The button click that triggered this event.
      *      `undefined` to use a passed-in type.
      */
-    noGvhd(evt) {
+    nogvhd(evt) {
         var $el;
         var active = false;
         if (evt) {
@@ -366,7 +370,6 @@ var DrawWidget = Panel.extend({
     skin_survey(evt) {
         var $el;
         var active = false;
-        const redcaptoken = 'EDA5B5DA88E062C5FBB54E86BF15C9A8';
         if (evt) {
             $el = this.$(evt.currentTarget);
             $el.tooltip('hide');
@@ -376,6 +379,18 @@ var DrawWidget = Panel.extend({
                 id: this.image.attributes._id,
                 redcaptoken: redcaptoken
             }
+            const folderImage = restRequest({
+                url: 'folder/' + this.image.attributes.folderId,
+                type: 'GET'
+            }).done(function (folder) {
+                console.log('Folder:', folder);
+            }).error(function (err) {
+                console.error('Error:', err);
+            });
+            console.log('send_to_redcap!');
+            console.log(folderImage);
+            console.log(this.image);
+            const redcaptoken = folderImage.attributes.meta.hasOwnProperty('redcaptoken') ? folderImage.attributes.meta.hasOwnProperty('redcaptoken') : 'DEFAULT_REDCAP_TOKEN';
             var item = $.ajax({
                 url: '/api/v1/item/%7Bid%7D/%7Bredcaptoken%7D/send_to_redcap?id=' + data['id'] + '&redcaptoken=' + redcaptoken,
                 beforeSend: function(request) {
