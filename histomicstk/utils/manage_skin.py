@@ -1,29 +1,3 @@
-import os
-import json
-
-import argparse
-import datetime
-import pytz
-import urllib
-import requests
-import sys
-import glob
-import re
-import tarfile
-import time
-import inspect
-from dateutil import parser
-
-from girder.models.setting import Setting
-from girder.models.upload import Upload
-from girder.api.v1.item import Folder
-from girder.models.token import Token
-from girder.models.user import User
-from girder.models.item import Item
-from girder.models.collection import Collection
-from girder.exceptions import ValidationException
-from girder.utility import setting_utilities, JsonEncoder
-
 # scan images and create thumbnails
 # set permission of image
 # create an annotation with names from every member of group
@@ -172,6 +146,8 @@ def parse_filename(filename):
     name_constituents = filename.split('_')
     pilot_id = None
     site_id = None
+    imaging_session = None
+    imaging_device_and_vectra = None
     fidelity = FIDELITY_LO
     if len(name_constituents) == 3:
         pilot_id, imaging_session, imaging_device_and_vectra = name_constituents
@@ -179,11 +155,40 @@ def parse_filename(filename):
         pilot_id, site_id, imaging_session, imaging_device_and_vectra = name_constituents
     elif len(name_constituents) == 5:
         pilot_id, site_id, imaging_session, fidelty, imaging_device_and_vectra = name_constituents
-    imaging_device_and_vectra = os.path.splitext(imaging_device_and_vectra)[0]
+
+    try:
+        imaging_device_and_vectra = os.path.splitext(imaging_device_and_vectra)[0]
+    except UnboundLocalError:
+        pass  # Just return everything as None since couldn't parse file
     return pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity
 
 
 if __name__ == '__main__':
+    import argparse
+    import datetime
+    import os
+    import pytz
+    import urllib
+    import requests
+    import json
+    import sys
+    import glob
+    import re
+    import tarfile
+    import time
+    import inspect
+    from dateutil import parser
+
+    from girder.models.setting import Setting
+    from girder.models.upload import Upload
+    from girder.api.v1.item import Folder
+    from girder.models.token import Token
+    from girder.models.user import User
+    from girder.models.item import Item
+    from girder.models.collection import Collection
+    from girder.exceptions import ValidationException
+    from girder.utility import setting_utilities, JsonEncoder
+    from girder.utility.model_importer import ModelImporter
 
     argparser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     argparser.add_argument('-t', '--token', type=str, default=os.environ.get('GIRDER_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN'),
@@ -565,7 +570,7 @@ def ingest_folder(user, pilot_id=None):
         folder_names = os.listdir(os.path.join(args.datadir, args.foldername))
     for record_path in folder_names:
         record_folder = get_or_create_girder_folder(parent_folder, os.path.basename(record_path), user, 'folder')
-        items = items + ingest_folder_sessions(record_folder)
+        items += ingest_folder_sessions(record_folder)
     return items
 
 
@@ -618,12 +623,11 @@ def process_access_helper():
 
 
 def process_natiens_create_annotation_layers_update_links(items):
-    from nameparser import HumanName
     group_url = args.url + GROUP_API_URL + '/' + args.workergroup + '/member?ignore' + ITEM_QUERY_STRING
     group = requests.get(group_url, headers=item_headers)
     group = json.loads(group.content)
     group_by_name = {g['login']: g for g in group}
-    # For creating all onnotation layers
+    # For creating all annotation layers
     annotations_dict = [{'name': u['login'], 'description': u['firstName'] + ' ' + u['lastName']} for u in group]
 
     req_annotations = requests.post(API_URL_REDCAP, data=fields_records_annotations)
@@ -669,22 +673,25 @@ def process_natiens_create_annotation_layers_update_links(items):
     # Update links to images
     for item in items:
         annotation_instrument_data['data'] = '[{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":"%s","field_name":"%s","value":"%s"}]'
-        pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity = parse_filename(item['name'])
-        image_link = args.url + SKIN_APP_IMAGE_BASE_URL + str(item['_id'])
-        folder_name = Folder().load(item['folderId'], force=True)
-        redcap_repeat_instance = folder_name['name'].split('_')[0]
-        try:
+        _, _, _, imaging_device_and_vectra, fidelity = parse_filename(item['name'])
+        # Don't push images if can't parse what to push
+        if imaging_device_and_vectra:
+            image_link = args.url + SKIN_APP_IMAGE_BASE_URL + str(item['_id'])
+            folder_name = Folder().load(item['folderId'], force=True)
+            redcap_repeat_instance = folder_name['name'].split('_')[0]
             link_field = 'link_' + remove_all_except_last(VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]], '_')
-        except KeyError:
-            print("Failed to parse filename.")
-            print(pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity)
-        annotation_instrument_data['data'] = annotation_instrument_data['data'] % (
-            item['meta']['record_id'],
-            redcap_repeat_instance,
-            link_field,
-            image_link,
-        )
-        requests.post(API_URL_REDCAP, data=annotation_instrument_data)
+            try:
+                link_field = 'link_' + remove_all_except_last(VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]], '_')
+            except KeyError:
+                print("Failed to parse filename.")
+                print(pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity)
+            annotation_instrument_data['data'] = annotation_instrument_data['data'] % (
+                item['meta']['record_id'],
+                redcap_repeat_instance,
+                link_field,
+                image_link,
+            )
+            requests.post(API_URL_REDCAP, data=annotation_instrument_data)
     return group_by_name, annotations_dict, access_dict
 
 
@@ -888,7 +895,7 @@ def get_items_from_folder(folder):
         items = json.loads(items.content)
         if 'message' in items:
             sys.stderr.write(items['message'] + "\n")
-    if set(args.operation) & set([INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, POLL_ANNOTATIONS_NATIENS_OP]):
+    if set(args.operation) & set([INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, POLL_ANNOTATIONS_NATIENS_OP, PROCESS_NATIENS_OP]):
         current_token = Token().load(args.token, force=True, objectId=False)
         try:
             user = User().load(current_token['userId'], force=True)
@@ -903,6 +910,60 @@ def remove_all_except_last(string, char):
     if last_index == -1:
         return string
     return string[:last_index].replace(char, '') + char + string[last_index+1:]
+
+
+def all_child_items(parent, parentType, user, limit=0, offset=0,
+                    sort=None, _internal=None, **kwargs):
+    """
+    This generator will yield all items that are children of the resource
+    or recursively children of child folders of the resource, with access
+    policy filtering.  Passes any kwargs to the find function.
+
+    :param parent: The parent object.
+    :type parentType: Type of the parent object.
+    :param parentType: The parent type.
+    :type parentType: 'user', 'folder', or 'collection'
+    :param user: The user running the query. Only returns items that this
+                 user can see.
+    :param limit: Result limit.
+    :param offset: Result offset.
+    :param sort: The sort structure to pass to pymongo.  Child folders are
+        served depth first, and this sort is applied within the resource
+        and then within each child folder.  Child items are processed
+        before child folders.
+    """
+    if _internal is None:
+        _internal = {
+            'limit': limit,
+            'offset': offset,
+            'done': False
+        }
+    model = ModelImporter.model(parentType)
+    if hasattr(model, 'childItems'):
+        if parentType == 'folder':
+            kwargs = kwargs.copy()
+            kwargs['includeVirtual'] = True
+        for item in model.childItems(
+                parent, user=user,
+                limit=_internal['limit'] + _internal['offset'],
+                offset=0, sort=sort, **kwargs):
+            if _internal['offset']:
+                _internal['offset'] -= 1
+            else:
+                yield item
+                if _internal['limit']:
+                    _internal['limit'] -= 1
+                    if not _internal['limit']:
+                        _internal['done'] = True
+                        return
+    for folder in ModelImporter.model('folder').childFolders(
+            parentType=parentType, parent=parent, user=user,
+            limit=0, offset=0, sort=sort, **kwargs):
+        if _internal['done']:
+            return
+        for item in all_child_items(folder, 'folder', user, sort=sort,
+                                    _internal=_internal, **kwargs):
+            yield item
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -926,9 +987,9 @@ if __name__ == "__main__":
             Setting().set(LAST_REDCAP_PULL_KEY, new_last_redcap_pull)
             for pilot_id in pilot_ids:
                 # grabbing new items from ingested folder
-                items = ingest_folder(user, pilot_id)
-                group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(items)
-                process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict)
+                items_new = ingest_folder(user, pilot_id)
+                group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(items_new)
+                process_generate_thumbnails_and_permissions(items_new, group_by_name, annotations_dict, access_dict)
     # Download files from REDCap into an OS folder
     if GET_FROM_REDCAP_OP in args.operation:
         get_from_redcap(user)
@@ -939,8 +1000,11 @@ if __name__ == "__main__":
     if PROCESS_OP in args.operation or PROCESS_BASELINE_OP in args.operation:
         group_by_name, annotations_dict, access_dict = process_access_helper()
     # Permissions for annotation layers is different for NATIENS
-    if PROCESS_NATIENS_OP in args.operation:
-        group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(items)
+    if PROCESS_NATIENS_OP in args.operation or POLL_ANNOTATIONS_NATIENS_OP in args.operation:
+        folder = Folder().load(args.folder, force=True)
+        all_items = list(all_child_items(parent=folder, parentType='folder', user=user))
+        group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(all_items)
+        process_generate_thumbnails_and_permissions(all_items, group_by_name, annotations_dict, access_dict)
     if PROCESS_BASELINE_OP in args.operation:
         process_baseline_helper(access_dict)
     # if any kind of processing needs to be done, set permissions
