@@ -144,6 +144,8 @@ def parse_filename(filename):
     name_constituents = filename.split('_')
     pilot_id = None
     site_id = None
+    imaging_session = None
+    imaging_device_and_vectra = None
     if len(name_constituents) == 3:
         pilot_id, imaging_session, imaging_device_and_vectra = name_constituents
     elif len(name_constituents) == 4:
@@ -151,7 +153,7 @@ def parse_filename(filename):
     try:
         imaging_device_and_vectra = os.path.splitext(imaging_device_and_vectra)[0]
     except UnboundLocalError:
-        return None
+        pass  # Just return everything as None since couldn't parse file
     return pilot_id, site_id, imaging_session, imaging_device_and_vectra
 
 
@@ -665,18 +667,20 @@ def process_natiens_create_annotation_layers_update_links(items):
     # Update links to images
     for item in items:
         annotation_instrument_data['data'] = '[{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":"%s","field_name":"%s","value":"%s"}]'
-        pilot_id, site_id, imaging_session, imaging_device_and_vectra = parse_filename(item['name'])
-        image_link = args.url + SKIN_APP_IMAGE_BASE_URL + str(item['_id'])
-        folder_name = Folder().load(item['folderId'], force=True)
-        redcap_repeat_instance = folder_name['name'].split('_')[0]
-        link_field = 'link_' + remove_all_except_last(VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]], '_')
-        annotation_instrument_data['data'] = annotation_instrument_data['data'] % (
-            item['meta']['record_id'],
-            redcap_repeat_instance,
-            link_field,
-            image_link,
-        )
-        requests.post(API_URL_REDCAP, data=annotation_instrument_data)
+        _, _, _, imaging_device_and_vectra = parse_filename(item['name'])
+        # Don't push images if can't parse what to push
+        if imaging_device_and_vectra:
+            image_link = args.url + SKIN_APP_IMAGE_BASE_URL + str(item['_id'])
+            folder_name = Folder().load(item['folderId'], force=True)
+            redcap_repeat_instance = folder_name['name'].split('_')[0]
+            link_field = 'link_' + remove_all_except_last(VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]], '_')
+            annotation_instrument_data['data'] = annotation_instrument_data['data'] % (
+                item['meta']['record_id'],
+                redcap_repeat_instance,
+                link_field,
+                image_link,
+            )
+            requests.post(API_URL_REDCAP, data=annotation_instrument_data)
     return group_by_name, annotations_dict, access_dict
 
 
