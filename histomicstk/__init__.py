@@ -15,7 +15,7 @@ except ImportError:
     pass  # may not be necessary for certain usages such as scripts
 
 
-BASE_URL = 'http://ec2-54-92-211-5.compute-1.amazonaws.com/'
+BASE_URL = 'https://skin.app.vumc.org/'
 API_URL_REDCAP = 'https://redcap.vanderbilt.edu/api/'
 
 # list out things that are available for public use

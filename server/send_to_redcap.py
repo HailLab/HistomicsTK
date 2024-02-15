@@ -47,8 +47,8 @@ class SendToRedcapItemResource(ItemResource):
         return record_id, site_id, imaging_session, imaging_device_and_vectra, fidelity
 
     def _render_annotations(self, item, folder):
-        URL = 'http://ec2-54-92-211-5.compute-1.amazonaws.com/api/v1/'
-        # URL = 'https://skin.app.vumc.org/api/v1/'
+        # URL = 'http://ec2-54-92-211-5.compute-1.amazonaws.com/api/v1/'
+        URL = 'https://skin.app.vumc.org/api/v1/'
         MULTIPLE_ANNOTATIONS = 'annotation/item/'
         GIRDER_TOKEN = getCurrentToken()['_id']
         item_id = str(item['_id'])
@@ -59,7 +59,9 @@ class SendToRedcapItemResource(ItemResource):
         localtz = pytz.timezone("America/Chicago")
         annotations_access_url = URL + MULTIPLE_ANNOTATIONS + item_id
         annotations_blob = requests.get(annotations_access_url, headers=item_headers)
-        annotations = json.loads(annotations_blob.content)
+        # @TODO: I'm not sure why there are some \n, characters showing up in output
+        #        but removing them seems to solve the issue 
+        annotations = json.loads(annotations_blob.content.replace(",\n", "").replace("\n", ""), strict=False)
         meta_annotations_only = dict()
         project_folder_name = ''
         if annotations and item and 'meta' in item:
@@ -103,7 +105,7 @@ class SendToRedcapItemResource(ItemResource):
             annotated_path_extenionless = os.path.join(annotated_files, annotated_filename + '_' + current_user['login'])
             # return 1, item
             # return 1, annotated_path_extenionless + annotated_extension
-            return record_id, annotated_path_extenionless + annotated_extension
+            # return annotated_path_extenionless + annotated_extension
             try:
                 annotated_im = Image.open(annotated_path_extenionless + annotated_extension)
                 annotated_rgb_im = annotated_im.convert("RGB")  # convert to jpg
@@ -182,7 +184,10 @@ class SendToRedcapItemResource(ItemResource):
         study_folder = FolderResource().load(session_folder['parentId'], force=True)
         study_name = study_folder['name']
         vectra = item['name'].split('_')[-1][1:3]  # parse filename for vectra
-        record_name = item['name'].split('_')[0]  # parse filename for record name
+        try:
+            record_name = item['meta']['record_id']
+        except KeyError:
+            record_name = item['name'].split('_')[0]  # parse filename for record name
         user = ItemResource().getCurrentUser()
         user_name = user['firstName'] + ' ' + user['lastName']
         # Simulating arguments from manage_skin script
@@ -194,14 +199,15 @@ class SendToRedcapItemResource(ItemResource):
             'startdate': None,
             'enddate': None,
             'annotator': [user['login']],
-            'url': 'http://ec2-54-92-211-5.compute-1.amazonaws.com/api/v1/',
+            'url': 'https://skin.app.vumc.org/api/v1/',
+            # 'url': 'http://ec2-54-92-211-5.compute-1.amazonaws.com/api/v1/',
             'operation': [manage_skin.EXPORT_NATIENS_OP],
             'datadir': '/opt/histomicstk_data',
             'token': GIRDER_TOKEN,
             'zip': True,
         })
         manage_skin.export([item], args)  # generate json files so annotation images can be rendered
-        # return self._render_annotations(item, folder)
+        # self._render_annotations(item, folder)
         (record_id, annotated_path_jpg) = self._render_annotations(item, folder)
         # return vars(args)
         instance_number = self._get_instance_number(redcaptoken, record_name, user_name)

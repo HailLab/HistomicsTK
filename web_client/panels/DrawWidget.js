@@ -114,7 +114,7 @@ var DrawWidget = Panel.extend({
         }
         var survey_submit = false;
         const user = getCurrentUser();
-        const SKIN_GROUP_ID = '629ff512234d56ac7568f286';
+        const NATIENS_GROUP = '61684cd6b782047b732b842c';
         // const skin_survey_folder = '60f600aa40582164e9ac5f25';
         // if (this.image && this.image.attributes && this.image.attributes.folderId && this.image.attributes.folderId == skin_survey_folder) {
         //     survey_submit = true;
@@ -122,8 +122,8 @@ var DrawWidget = Panel.extend({
         console.log('GROUP STUFF');
         console.log(user);
         console.log(user.attributes.groups);
-        console.log(SKIN_GROUP_ID);
-        if (user.attributes.groups.indexOf(SKIN_GROUP_ID) > -1) {
+        console.log(NATIENS_GROUP);
+        if (user.attributes.groups.indexOf(NATIENS_GROUP) > -1) {
             survey_submit = true;
         }
         // console.log(JSON.stringify(JSON.decycle(this)));
@@ -362,37 +362,54 @@ var DrawWidget = Panel.extend({
     },
 
     /**
+     * Returns the parent folder ID
+     *
+     * @param {string} The folder ID of the parent.
+     */
+    getParentFolder(folderId) {
+        console.log('InsideGetParentFolder:', folderId);
+        return new Promise(function(resolve, reject) {
+            restRequest({
+                url: 'folder/' + folderId,
+                type: 'GET'
+            }).done(function (parentFolder) {
+                resolve(parentFolder);
+            }).fail(function (err) {
+                console.error('Error getting parent folder:', err);
+                reject(err);
+            });
+        });
+    },
+
+    /**
      * Submit images to survey using API, only for Skin Survey
      *
      * @param {jQuery.Event} [evt] The button click that triggered this event.
      *      `undefined` to use a passed-in type.
      */
-    skin_survey(evt) {
+    async skin_survey(evt) {
         var $el;
         var active = false;
         if (evt) {
             $el = this.$(evt.currentTarget);
             $el.tooltip('hide');
             active = $el.hasClass('active');
-
-            var data = {
-                id: this.image.attributes._id,
-                redcaptoken: redcaptoken
+            // get folder
+            var folderImage = await this.getParentFolder(this.image.parent.id);
+            console.log('parent.id: ', this.image.parent.id);
+            // get all parent folders until one has a redcaptoken
+            while (folderImage && (!folderImage.hasOwnProperty('meta') || !folderImage.meta.hasOwnProperty('redcaptoken'))) {
+                console.log('Folderloop: ', folderImage.parentId);
+                folderImage = await this.getParentFolder(folderImage.parentId);
             }
-            const folderImage = restRequest({
-                url: 'folder/' + this.image.attributes.folderId,
-                type: 'GET'
-            }).done(function (folder) {
-                console.log('Folder:', folder);
-            }).error(function (err) {
-                console.error('Error:', err);
-            });
+
+            const redcaptoken = folderImage.meta.redcaptoken ? folderImage.meta.redcaptoken : 'DEFAULT_REDCAP_TOKEN';
             console.log('send_to_redcap!');
             console.log(folderImage);
             console.log(this.image);
-            const redcaptoken = folderImage.attributes.meta.hasOwnProperty('redcaptoken') ? folderImage.attributes.meta.hasOwnProperty('redcaptoken') : 'DEFAULT_REDCAP_TOKEN';
+            const imageId = this.image.attributes._id;
             var item = $.ajax({
-                url: '/api/v1/item/%7Bid%7D/%7Bredcaptoken%7D/send_to_redcap?id=' + data['id'] + '&redcaptoken=' + redcaptoken,
+                url: '/api/v1/item/%7Bid%7D/%7Bredcaptoken%7D/send_to_redcap?id=' + imageId + '&redcaptoken=' + redcaptoken,
                 beforeSend: function(request) {
                     var getCookie = function(name) {
                         var value = "; " + document.cookie;

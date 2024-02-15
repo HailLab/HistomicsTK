@@ -1,3 +1,16 @@
+import glob
+import json
+import os
+import requests
+import tarfile
+
+from dateutil import parser
+import pytz
+
+from girder.api.v1.item import Folder
+from girder.utility import JsonEncoder
+
+
 # scan images and create thumbnails
 # set permission of image
 # create an annotation with names from every member of group
@@ -32,6 +45,7 @@ GET_FROM_REDCAP_OP = 'get_from_redcap'
 SEND_TO_REDCAP_OP = 'send_to_redcap'
 RENDER_ANNOTATIONS_OP = 'render_annotations'
 POLL_ANNOTATIONS_NATIENS_OP = 'poll_annotations_natiens'
+SET_TOKEN_EXPIRATION_OP = 'set_token_expiration'
 
 FILE_FIELDS_VECTRA = {
     'face_f': '02',
@@ -164,30 +178,23 @@ def parse_filename(filename):
 
 
 if __name__ == '__main__':
-    import argparse
     import datetime
-    import os
-    import pytz
-    import urllib
-    import requests
-    import json
     import sys
-    import glob
     import re
-    import tarfile
     import time
     import inspect
-    from dateutil import parser
+
+    import argparse
+    import urllib
 
     from girder.models.setting import Setting
     from girder.models.upload import Upload
-    from girder.api.v1.item import Folder
     from girder.models.token import Token
     from girder.models.user import User
     from girder.models.item import Item
     from girder.models.collection import Collection
     from girder.exceptions import ValidationException
-    from girder.utility import setting_utilities, JsonEncoder
+    from girder.utility import setting_utilities
     from girder.utility.model_importer import ModelImporter
 
     argparser = argparse.ArgumentParser(fromfile_prefix_chars='@')
@@ -195,7 +202,7 @@ if __name__ == '__main__':
                            help='Girder token for access')
     argparser.add_argument('-r', '--redcaptoken', type=str, default=os.environ.get('REDCAP_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN'),
                            help='REDCap token for access')
-    argparser.add_argument('-u', '--url', type=str, default='http://ec2-54-92-211-5.compute-1.amazonaws.com/api/v1/',
+    argparser.add_argument('-u', '--url', type=str, default='https://skin.app.vumc.org/api/v1/',
                            help='Url for histomicsTK server')
     argparser.add_argument('-f', '--folder', type=str, default='', help='Folder images are stored in for processing')
     argparser.add_argument('-n', '--foldername', type=str, default='unnamed', help='Name of new folder')
@@ -207,7 +214,7 @@ if __name__ == '__main__':
     argparser.add_argument('-o', '--operation', type=str, default=[], nargs='+',
                            choices=[PROCESS_OP, EXPORT_OP, EXPORT_NATIENS_OP, STATUS_OP, PROCESS_BASELINE_OP, PROCESS_NATIENS_OP,
                                     INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, RENDER_ANNOTATIONS_OP,
-                                    POLL_ANNOTATIONS_NATIENS_OP],
+                                    POLL_ANNOTATIONS_NATIENS_OP, SET_TOKEN_EXPIRATION_OP],
                            help='What to do with images')
     argparser.add_argument('-s', '--startdate', type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d'), default=None,
                            help='date before which no annotations will be returned (inclusive)')
@@ -219,6 +226,7 @@ if __name__ == '__main__':
     argparser.add_argument('-p', '--phi', action='store_true', help='Ignore PHI settings and export all images')
     argparser.add_argument('-i', '--ignoreexisting', action='store_true', help='Ignore whether a file exists or not')
     argparser.add_argument('-x', '--annotator', type=str, nargs='+', default=[], help='Users to export json for.')
+    argparser.add_argument('-k', '--tokenid', type=str, default='', help='ID of Girder Token.')
     args = argparser.parse_args()
 
     item_headers = {'Girder-Token': args.token, 'Accept': 'application/json'}
@@ -756,7 +764,7 @@ def export(items, args):
     except OSError:
         pass  # if the directory exists, just add to it
     except NameError:
-        pass  # args not passed in, this should be fine
+        pass  # args not passed in, this should be fine  # mGVHD
 
     localtz = pytz.timezone("America/Chicago")
     # restrict by start and end dates
@@ -775,7 +783,10 @@ def export(items, args):
             annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + str(item['_id'])
             item_headers = {'Girder-Token': args.token, 'Accept': 'application/json'}
             annotations_blob = requests.get(annotations_access_url, headers=item_headers)
-            annotations = json.loads(annotations_blob.content)
+            # @TODO: I'm not sure why there are some \n, characters showing up in output
+            #        but removing them seems to solve the issue 
+            annotations_blob.content.replace(",\n", "").replace("\n", "")
+            annotations = json.loads(annotations_blob.content.replace(",\n", "").replace("\n", ""), strict=False)
             annotations_within_range = []
             for annotation in annotations:
                 if annotation['updated']:
@@ -818,16 +829,20 @@ def export(items, args):
                     [make_dir_if_not_exists(f) for f in [imgsrc_files, json_files, mask_files, annotated_files]]
                     # return os.path.join(args.datadir, 'natiens_pilot', parent_folder['name'], folder['name'], 'json', item['name'] + '.json')
                     # import pdb; pdb.set_trace()
-                    with open(os.path.join(args.datadir, args.foldername, parent_folder['name'], folder['name'], 'json', item['name'] + '.json'), 'wb') as f:
+                    if 'record_id' in item['meta']:
+                        record_id = item['meta']['record_id']
+                    else:
+                        record_id = item['name']
+                    with open(os.path.join(args.datadir, args.foldername, parent_folder['name'], folder['name'], 'json', record_id + '.json'), 'wb') as f:
                         item['annotations'] = [anno for anno in annotations_within_range]
                         # output json file
                         f.write(json.dumps(item, cls=JsonEncoder))
-                else:
+                else:  # mGVHD
                     try:
                         os.mkdir(os.path.join(args.datadir, args.foldername, 'json'))
                     except OSError:
                         pass  # if the directory exists, just add to it
-                    with open(os.path.join(args.datadir, args.foldername, 'json', item['name'] + '.json'), 'wb') as f:
+                    with open(os.path.join(args.datadir, args.foldername, 'json', record_id + '.json'), 'wb') as f:
                         item['annotations'] = [anno for anno in annotations_within_range]
                         f.write(json.dumps(item, cls=JsonEncoder))
     if startdate and enddate:
@@ -881,6 +896,13 @@ def send_to_redcap():
                     fields_records_upload['data'] = record_id
                     req_records = requests.post(API_URL_REDCAP, data=fields_records_upload)
     # os.environ.get('GIRDER_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN')
+
+
+def set_token_expiration(token):
+    t = Token().load(token, objectId=False, force=True)
+    import pdb; pdb.set_trace()
+    t['expires'] = (datetime.datetime.utcnow() + datetime.timedelta(days=365*7))
+    Toen().save(t)
 
 
 def get_items_from_folder(folder):
@@ -1019,3 +1041,5 @@ if __name__ == "__main__":
     # Send the outputted annotated PNGs to REDCap
     if SEND_TO_REDCAP_OP in args.operation:
         send_to_redcap()
+    if SET_TOKEN_EXPIRATION_OP in args.operation:
+        set_token_expiration(args.token)
