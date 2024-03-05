@@ -219,7 +219,7 @@ To install, on Amazon Linux instance with a minimum of 120GB SSD and IP restrict
     pip install docker
     python3 ansible/deploy_docker.py start --mount ~/HistomicsTK/:/opt/histomicstk/HistomicsTK/  # kill command if it appears as though deployment is looping. The containers were still created properly.
     sudo mkdir /etc/nginx/sites-enabled/
-    sudo cp devops/skin.app.vumc.org.conf.example /etc/nginx/sites-enabled/skin.app.vumc.org.conf
+    sudo cp devops/skin.app.vumc.org.conf.example /etc/nginx/conf.d/skin.app.vumc.org.conf
     sudo service nginx restart
 
 On source server:
