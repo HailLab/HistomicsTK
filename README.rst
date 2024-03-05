@@ -201,6 +201,16 @@ After making changes to MATLAB script:
     cp ~/step1_main_read_json_mask /opt/histomicstk/HistomicsTK/histomicstk/utils/
     JSON_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/json/' BASELINE_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/imgsrc/' ANNOTATED_IMAGES_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/annotated/' MASKS_FOLDER='/opt/histomicstk_data/natiens_pilot/Pilot06/1_211004/masks/' /opt/histomicstk/HistomicsTK/histomicstk/utils/run_step1_main_read_json_mask.sh /home/ubuntu/matlab/r2021b/mcr
 
+To update expiration on Girder Token:
+*************************************
+.. code-block:: bash
+
+    docker exec -it $(docker ps -aqf "ancestor=mongo:latest") mongosh
+    db.token.updateOne(
+      { "_id": "GIRDER_TOKEN" },
+      { $set: { "expires": ISODate("2025-09-01T20:42:54.764Z") } }
+    )
+
 Server admin
 ############
 HistomicsTK is hosted on an AWS instance. Backup images are being created of it.
