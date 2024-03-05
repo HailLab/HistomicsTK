@@ -218,14 +218,15 @@ To install, on Amazon Linux instance with a minimum of 120GB SSD and IP restrict
     pip install -r requirements_dev.txt
     pip install docker
     python3 ansible/deploy_docker.py start --mount ~/HistomicsTK/:/opt/histomicstk/HistomicsTK/  # kill command if it appears as though deployment is looping. The containers were still created properly.
-    cp devops/skin.app.vumc.org.conf.example /etc/nginx/sites-enabled/skin.app.vumc.org.conf
+    sudo mkdir /etc/nginx/sites-enabled/
+    sudo cp devops/skin.app.vumc.org.conf.example /etc/nginx/sites-enabled/skin.app.vumc.org.conf
     sudo service nginx restart
 
 On source server:
 -----------------
 .. code-block:: bash
 
-    docker exec $(docker ps -aqf "ancestor=mongo:latest") mongodump --out /root/htkdb
+    docker exec $(docker ps -aqf "ancestor=mongo:latest") mongodump -d girder --gzip --out /root/htkdb
     docker cp $(docker ps -aqf "ancestor=mongo:latest"):/root/htkdb ~/
     docker cp $(docker ps -aqf "ancestor=dsarchive/histomicstk_main:latest"):/opt/histomicstk/assetstore ~/assetstore
 
@@ -244,9 +245,21 @@ On destination server:
 .. code-block:: bash
 
     docker cp ~/htkdb $(docker ps -aqf "ancestor=mongo:latest"):/root/htkdb
-    docker exec $(docker ps -aqf "ancestor=mongo:latest") mongorestore /root/htkdb
+    docker exec $(docker ps -aqf "ancestor=mongo:latest") mongorestore -d girder --gzip /root/htkdb/girder
     docker cp ~/assetstore $(docker ps -aqf "ancestor=dsarchive/histomicstk_main:latest"):/opt/histomicstk
-    docker exec $(docker ps -aqf "ancestor=dsarchive/histomicstk_main:latest") sudo mkdir /opt/histomicstk_data && sudo chown -R root:ubuntu /opt/histomicstk_data/ && sudo chmod -R g+w /opt/histomicstk_data/ && sudo apt-get update && sudo apt install cron libgl1-mesa-dev && sudo systemctl enable cron && pip install nameparser && mkdir /opt/histomicstk/girder/clients/web/static/timeme.js && cd /opt/histomicstk/girder/clients/web/static/timeme.js && curl -O https://cdnjs.cloudflare.com/ajax/libs/TimeMe.js/2.0.0/timeme.min.js && cd /opt/histomicstk/girder/clients/web/static/ && curl -O https://wurfl.io/wurfl.js
+    docker exec $(docker ps -aqf "ancestor=dsarchive/histomicstk_main:latest") bash -c "\
+        sudo mkdir -p /opt/histomicstk_data; \
+        sudo chown -R root:ubuntu /opt/histomicstk_data/; \
+        sudo chmod -R g+w /opt/histomicstk_data/; \
+        sudo apt-get update -y; \
+        sudo apt install -y cron libgl1-mesa-dev; \
+        sudo systemctl enable cron; \
+        pip install nameparser; \
+        mkdir -p /opt/histomicstk/girder/clients/web/static/timeme.js; \
+        cd /opt/histomicstk/girder/clients/web/static/timeme.js; \
+        curl -O https://cdnjs.cloudflare.com/ajax/libs/TimeMe.js/2.0.0/timeme.min.js; \
+        cd /opt/histomicstk/girder/clients/web/static/; \
+        curl -O https://wurfl.io/wurfl.js;"
 
 Erata
 #####
