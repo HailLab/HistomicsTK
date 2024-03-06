@@ -61,7 +61,10 @@ class SendToRedcapItemResource(ItemResource):
         annotations_blob = requests.get(annotations_access_url, headers=item_headers)
         # @TODO: I'm not sure why there are some \n, characters showing up in output
         #        but removing them seems to solve the issue 
-        annotations = json.loads(annotations_blob.content.replace(",\n", "").replace("\n", ""), strict=False)
+        try:
+            annotations = json.loads(annotations_blob.content.replace(",\n", "").replace("\n", ""), strict=False)
+        except ValueError:
+            annotations = json.loads(annotations_blob.content, strict=False)
         meta_annotations_only = dict()
         project_folder_name = ''
         if annotations and item and 'meta' in item:
@@ -105,14 +108,15 @@ class SendToRedcapItemResource(ItemResource):
             annotated_path_extenionless = os.path.join(annotated_files, annotated_filename + '_' + current_user['login'])
             # return 1, item
             # return 1, annotated_path_extenionless + annotated_extension
-            # return annotated_path_extenionless + annotated_extension
+            # return annotated_path_extenionless + '.jpg'
             try:
                 annotated_im = Image.open(annotated_path_extenionless + annotated_extension)
                 annotated_rgb_im = annotated_im.convert("RGB")  # convert to jpg
-                annotated_rgb_im.save(annotated_path_extenionless + '.jpg')
+                annotated_rgb_im.save(annotated_path_extenionless + '.jpg', quality=92)
             except IOError:
                 raise RestException('Image not found.', 404)
-            return record_id, annotated_path_extenionless + '.jpg'
+            json_path = os.path.join(json_files, annotated_filename + '.jpg.json')
+            return record_id, annotated_path_extenionless + '.jpg', json_path
             # tar_obj = tarfile.open(os.path.join(base_dir, export_dir, item_id, item_id + '.tar.gz'), 'w:gz')
             # json_files = glob.glob(os.path.join(base_dir, export_dir, item_id, 'json', '*.json'))
             # [tar_obj.add(json_file) for json_file in json_files]
@@ -207,30 +211,38 @@ class SendToRedcapItemResource(ItemResource):
             'zip': True,
         })
         manage_skin.export([item], args)  # generate json files so annotation images can be rendered
-        # self._render_annotations(item, folder)
-        (record_id, annotated_path_jpg) = self._render_annotations(item, folder)
+        # return self._render_annotations(item, folder)
+        (record_id, annotated_path_jpg, json_path) = self._render_annotations(item, folder)
         # return vars(args)
         instance_number = self._get_instance_number(redcaptoken, record_name, user_name)
 
-        field = manage_skin.VECTRA_FILE_FIELDS[vectra] + '1'  # Annotation fields end with a 1
+        field_annotation = manage_skin.VECTRA_FILE_FIELDS[vectra] + '1'  # Annotation fields end with a 1
         fields_records_upload = {
             'token': redcaptoken,
             'content': 'file',
             'action': 'import',
             'returnFormat': 'json',
-            'field': field,
+            'field': field_annotation,
             'repeat_instance': instance_number['redcap_repeat_instance'],
         }
         # if 'meta' in item and 'record_id' in item['meta']:
         fields_records_upload['record'] = record_name
         from histomicstk import API_URL_REDCAP
+        # upload annotation jpg
         with open(annotated_path_jpg, 'rb') as f:
             # return (annotated_path_jpg, API_URL_REDCAP, fields_records_upload, f)
             req = requests.post(API_URL_REDCAP, data=fields_records_upload, files={'file': f})
             # return fields_records_upload
+        field_components = manage_skin.VECTRA_FILE_FIELDS[vectra].split('_')
+        # JSON fields start with json_ and don't delimit field components
+        fields_records_upload['field'] = 'json_' + ''.join(field_components[:-1]) + '_' + field_components[-1]
+        # upload annotation json
+        with open(json_path, 'rb') as f:
+            req = requests.post(API_URL_REDCAP, data=fields_records_upload, files={'file': f})
             return req.text
         # groups = [str(g) for g in user.get('groups', [])]
         # expert_group = '5f0dc574c9f8c18253ae949e'
         # expert_group_natiens = '629ff512234d56ac7568f286'
 
         #folder = folderModel.load(folder, user=user, level=AccessType.READ)
+
