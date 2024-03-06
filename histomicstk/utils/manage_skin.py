@@ -202,7 +202,8 @@ if __name__ == '__main__':
                            help='Girder token for access')
     argparser.add_argument('-r', '--redcaptoken', type=str, default=os.environ.get('REDCAP_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN'),
                            help='REDCap token for access')
-    argparser.add_argument('-u', '--url', type=str, default='https://skin.app.vumc.org/api/v1/',
+    # argparser.add_argument('-u', '--url', type=str, default='https://skin.app.vumc.org/api/v1/',
+    argparser.add_argument('-u', '--url', type=str, default='http://ec2-54-152-138-170.compute-1.amazonaws.com/api/v1/',
                            help='Url for histomicsTK server')
     argparser.add_argument('-f', '--folder', type=str, default='', help='Folder images are stored in for processing')
     argparser.add_argument('-n', '--foldername', type=str, default='unnamed', help='Name of new folder')

@@ -13,7 +13,8 @@ ACCESS_QUERY_STRING = '&public=false&recurse=true&progress=false'
 ANNOTATION = 'annotation/'
 API_URL_REDCAP = 'https://redcap.vanderbilt.edu/api/'
 LATEST_ANNOTATION_QUERY_STRING = 'annotation?limit=1&sort=created&sortdir=-1'
-SKIN_APP_IMAGE_BASE_URL = 'https://skin.app.vumc.org/histomicstk#?image='
+# SKIN_APP_IMAGE_BASE_URL = 'https://skin.app.vumc.org/histomicstk#?image='
+SKIN_APP_IMAGE_BASE_URL = 'http://ec2-54-152-138-170.compute-1.amazonaws.com/histomicstk#?image='
 FILE_FIELDS_VECTRA = {
     'face_f': '02',
     'trunk_ant_f': '04',
