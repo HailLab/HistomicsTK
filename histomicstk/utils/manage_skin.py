@@ -787,7 +787,10 @@ def export(items, args):
             # @TODO: I'm not sure why there are some \n, characters showing up in output
             #        but removing them seems to solve the issue 
             annotations_blob.content.replace(",\n", "").replace("\n", "")
-            annotations = json.loads(annotations_blob.content.replace(",\n", "").replace("\n", ""), strict=False)
+            try:
+                annotations = json.loads(annotations_blob.content.replace(",\n", "").replace("\n", ""), strict=False)
+            except ValueError:
+                annotations = json.loads(annotations_blob.content, strict=False)
             annotations_within_range = []
             for annotation in annotations:
                 if annotation['updated']:
@@ -903,7 +906,7 @@ def set_token_expiration(token):
     t = Token().load(token, objectId=False, force=True)
     import pdb; pdb.set_trace()
     t['expires'] = (datetime.datetime.utcnow() + datetime.timedelta(days=365*7))
-    Toen().save(t)
+    Token().save(t)
 
 
 def get_items_from_folder(folder):
