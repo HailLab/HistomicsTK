@@ -46,6 +46,7 @@ SEND_TO_REDCAP_OP = 'send_to_redcap'
 RENDER_ANNOTATIONS_OP = 'render_annotations'
 POLL_ANNOTATIONS_NATIENS_OP = 'poll_annotations_natiens'
 SET_TOKEN_EXPIRATION_OP = 'set_token_expiration'
+TIME_ON_TASK_OP = 'time_on_task'
 
 FILE_FIELDS_VECTRA = {
     'face_f': '02',
@@ -185,6 +186,7 @@ if __name__ == '__main__':
     import inspect
 
     import argparse
+    # import redcapy
     import urllib
 
     from girder.models.setting import Setting
@@ -214,7 +216,7 @@ if __name__ == '__main__':
     argparser.add_argument('-o', '--operation', type=str, default=[], nargs='+',
                            choices=[PROCESS_OP, EXPORT_OP, EXPORT_NATIENS_OP, STATUS_OP, PROCESS_BASELINE_OP, PROCESS_NATIENS_OP,
                                     INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, RENDER_ANNOTATIONS_OP,
-                                    POLL_ANNOTATIONS_NATIENS_OP, SET_TOKEN_EXPIRATION_OP],
+                                    POLL_ANNOTATIONS_NATIENS_OP, SET_TOKEN_EXPIRATION_OP, TIME_ON_TASK_OP],
                            help='What to do with images')
     argparser.add_argument('-s', '--startdate', type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d'), default=None,
                            help='date before which no annotations will be returned (inclusive)')
@@ -307,6 +309,14 @@ def get_from_redcap(user):
         'type': 'flat',
         'forms': 'skinio_photography',
     }
+    # redcap_handler = redcapy.request.APIHandler(
+    #     api_url=API_URL_REDCAP,
+    #     token=args.redcaptoken
+    # )
+    # new_last_redcap_pull = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # last_redcap_pull = datetime.datetime.strptime(Setting().get(LAST_REDCAP_PULL_KEY), '%Y-%m-%d %H:%M:%S')
+    # records = redcap_handler.get_records(date_range_begin=last_redcap_pull, date_range_end=new_last_redcap_pull)
+    # import pdb; pdb.set_trace()
     for i, pilot_id in enumerate(pilot_ids):
         fields_records_download['record[{i}]'.format(i=i)] = pilot_id
 
@@ -903,7 +913,6 @@ def send_to_redcap():
 
 def set_token_expiration(token):
     t = Token().load(token, objectId=False, force=True)
-    import pdb; pdb.set_trace()
     t['expires'] = (datetime.datetime.utcnow() + datetime.timedelta(days=365*7))
     Token().save(t)
 
@@ -991,6 +1000,15 @@ def all_child_items(parent, parentType, user, limit=0, offset=0,
             yield item
 
 
+def get_time_on_task_by_folder(folder_id):
+    folder = Folder().load(folder_id, force=True)
+    user_times = ['time-rachelweiss', 'time-rachelgvhdcontrol', 'time-rachelgvhdinterv']
+    # Get a list of all items (images) in the folder
+    for i in Folder().childItems(folder=folder):
+        for t in user_times:
+            print(i['name'] + "," + t + "," + str(i['meta'].get(t, '')))
+
+
 class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime.datetime):
@@ -1003,10 +1021,12 @@ if __name__ == "__main__":
     # Get status of annotation layers from SkinApp
     if STATUS_OP in args.operation:
         get_status(items)
+    # Download files from REDCap into an OS folder
+    if GET_FROM_REDCAP_OP in args.operation:
+        get_from_redcap(user)
     # Check if new annotations are available in NATIENS to process
     if POLL_ANNOTATIONS_NATIENS_OP in args.operation:
         pilot_ids, new_last_redcap_pull = poll_annotations_natiens(user)
-        pilot_ids = ['NAT-01-JC']  # import pdb; pdb.set_trace() REMOVE THIS
         if pilot_ids:
             get_from_redcap(user)
             Setting().set(LAST_REDCAP_PULL_KEY, new_last_redcap_pull)
@@ -1015,9 +1035,6 @@ if __name__ == "__main__":
                 items_new = ingest_folder(user, pilot_id)
                 group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(items_new)
                 process_generate_thumbnails_and_permissions(items_new, group_by_name, annotations_dict, access_dict)
-    # Download files from REDCap into an OS folder
-    if GET_FROM_REDCAP_OP in args.operation:
-        get_from_redcap(user)
     # Ingest OS folder into Girder collection folder
     if INGEST_FOLDER_OP in args.operation:
         ingest_folder(user)
@@ -1025,7 +1042,7 @@ if __name__ == "__main__":
     if PROCESS_OP in args.operation or PROCESS_BASELINE_OP in args.operation:
         group_by_name, annotations_dict, access_dict = process_access_helper()
     # Permissions for annotation layers is different for NATIENS
-    if PROCESS_NATIENS_OP in args.operation or POLL_ANNOTATIONS_NATIENS_OP in args.operation:
+    if PROCESS_NATIENS_OP in args.operation:
         folder = Folder().load(args.folder, force=True)
         all_items = list(all_child_items(parent=folder, parentType='folder', user=user))
         group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(all_items)
@@ -1046,3 +1063,6 @@ if __name__ == "__main__":
         send_to_redcap()
     if SET_TOKEN_EXPIRATION_OP in args.operation:
         set_token_expiration(args.token)
+    if TIME_ON_TASK_OP in args.operation:
+        get_time_on_task_by_folder(args.folder)
+
