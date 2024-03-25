@@ -107,12 +107,12 @@ class SendToRedcapItemResource(ItemResource):
             current_user = getCurrentUser()
             annotated_path_extenionless = os.path.join(annotated_files, annotated_filename + '_' + current_user['login'])
             # return 1, item
-            # return 1, annotated_path_extenionless + annotated_extension
+            # return 1, annotated_path_extenionless + annotated_extension, 1
             # return annotated_path_extenionless + '.jpg'
             try:
                 annotated_im = Image.open(annotated_path_extenionless + annotated_extension)
                 annotated_rgb_im = annotated_im.convert("RGB")  # convert to jpg
-                annotated_rgb_im.save(annotated_path_extenionless + '.jpg', quality=92)
+                annotated_rgb_im.save(annotated_path_extenionless + '.jpg', quality=92, subsampling="4:2:0", progressive=True)
             except IOError:
                 raise RestException('Image not found.', 404)
             json_path = os.path.join(json_files, annotated_filename + '.jpg.json')
@@ -211,7 +211,7 @@ class SendToRedcapItemResource(ItemResource):
             'zip': True,
         })
         manage_skin.export([item], args)  # generate json files so annotation images can be rendered
-        # return self._render_annotations(item, folder)
+        #return self._render_annotations(item, folder)
         (record_id, annotated_path_jpg, json_path) = self._render_annotations(item, folder)
         # return vars(args)
         instance_number = self._get_instance_number(redcaptoken, record_name, user_name)

@@ -18,7 +18,8 @@ else
   LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MCRROOT}/bin/glnxa64 ;
   LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MCRROOT}/sys/os/glnxa64;
   # LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MCRROOT}/sys/opengl/lib/glnxa64:/usr/local/MATLAB/MATLAB_Runtime/v911/runtime/glnxa64:/usr/local/MATLAB/MATLAB_Runtime/v911/bin/glnxa64:/usr/local/MATLAB/MATLAB_Runtime/v911/sys/os/glnxa64:/usr/local/MATLAB/MATLAB_Runtime/v911/extern/bin/glnxa64;
-  LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MCRROOT}/sys/os/glnxa64:/home/ubuntu/matlab/r2021b/bin/glnxa64:/home/ubuntu/matlab/r2021b/sys/os/glnxa64:/usr/lib/x86_64-linux-gnu:/home/ubuntu/matlab/sys/os/glnxa64/:/home/ubuntu/matlab/sys/opengl/lib/glnxa64:/home/ubuntu/matlab/r2021b/bin/glnxa64/:/home/ubuntu/matlab/r2021b/runtime/glnxa64/
+  LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MCRROOT}/sys/os/glnxa64:/usr/local/MATLAB/MATLAB_Runtime/v911/runtime/glnxa64:/usr/local/MATLAB/MATLAB_Runtime/v911/bin/glnxa64:/usr/local/MATLAB/MATLAB_Runtime/v911/sys/os/glnxa64:/usr/local/MATLAB/MATLAB_Runtime/v911/extern/bin/glnxa64
+  # LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${MCRROOT}/sys/os/glnxa64:/home/ubuntu/matlab/r2021b/bin/glnxa64:/home/ubuntu/matlab/r2021b/sys/os/glnxa64:/usr/lib/x86_64-linux-gnu:/home/ubuntu/matlab/sys/os/glnxa64/:/home/ubuntu/matlab/sys/opengl/lib/glnxa64:/home/ubuntu/matlab/r2021b/bin/glnxa64/:/home/ubuntu/matlab/r2021b/runtime/glnxa64/
   export LD_LIBRARY_PATH;
   echo LD_LIBRARY_PATH is ${LD_LIBRARY_PATH};
 # Preload glibc_shim in case of RHEL7 variants
