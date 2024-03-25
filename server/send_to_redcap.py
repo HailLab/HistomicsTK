@@ -16,6 +16,7 @@ import os
 import pytz
 import random
 import requests
+import subprocess
 import tarfile
 
 
@@ -110,9 +111,16 @@ class SendToRedcapItemResource(ItemResource):
             # return 1, annotated_path_extenionless + annotated_extension, 1
             # return annotated_path_extenionless + '.jpg'
             try:
+                img_src_path = os.path.join(imgsrc_files, item['name'])
+                # result = subprocess.run(["identify", "-format", "%Q", img_src_path], capture_output=True, text=True, check=True)
+                output = subprocess.check_output(["identify", "-format", "%Q", img_src_path])
+                quality = int(output.strip())
+            except BaseException as e:
+                quality = 92  # Default to high quality
+            try:
                 annotated_im = Image.open(annotated_path_extenionless + annotated_extension)
                 annotated_rgb_im = annotated_im.convert("RGB")  # convert to jpg
-                annotated_rgb_im.save(annotated_path_extenionless + '.jpg', quality=92, subsampling="4:2:0", progressive=True)
+                annotated_rgb_im.save(annotated_path_extenionless + '.jpg', quality=quality, subsampling="4:2:0", progressive=True)
             except IOError:
                 raise RestException('Image not found.', 404)
             json_path = os.path.join(json_files, annotated_filename + '.jpg.json')

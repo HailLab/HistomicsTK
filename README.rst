@@ -270,6 +270,15 @@ On destination server:
         curl -O https://cdnjs.cloudflare.com/ajax/libs/TimeMe.js/2.0.0/timeme.min.js; \
         cd /opt/histomicstk/girder/clients/web/static/; \
         curl -O https://wurfl.io/wurfl.js;"
+    docker exec $(docker ps -aqf "ancestor=dsarchive/histomicstk_main:latest") bash -c "\
+        sudo mkdir -p /opt/histomicstk_data; \
+        sudo apt-get -y install unzip; \
+        curl -O https://ssd.mathworks.com/supportfiles/downloads/R2021b/Release/7/deployment_files/installer/complete/glnxa64/MATLAB_Runtime_R2021b_Update_7_glnxa64.zip; \
+        unzip MATLAB*; \
+        rm MATLAB*.zip; \
+        sudo -H ./install -agreeToLicense yes -outputFile matlab_install_log.txt -t -mode silent; \
+        sudo apt-get -y install libxt6; \
+        grep -2 "LD_LIBRARY" matlab_install_log.txt  # update the LD_LIBRARY_PATH with the one outputted by the install log in /opt/histomicstk/HistomicsTK/histomicstk/utils/run_step1_main_read_json_mask.sh; \"
 
 Erata
 #####
