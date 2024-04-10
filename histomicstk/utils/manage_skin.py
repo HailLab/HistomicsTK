@@ -186,7 +186,7 @@ if __name__ == '__main__':
     import inspect
 
     import argparse
-    # import redcapy
+    #import pycap
     import urllib
 
     from girder.models.setting import Setting
@@ -309,14 +309,15 @@ def get_from_redcap(user):
         'type': 'flat',
         'forms': 'skinio_photography',
     }
-    # redcap_handler = redcapy.request.APIHandler(
-    #     api_url=API_URL_REDCAP,
-    #     token=args.redcaptoken
-    # )
-    # new_last_redcap_pull = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    # last_redcap_pull = datetime.datetime.strptime(Setting().get(LAST_REDCAP_PULL_KEY), '%Y-%m-%d %H:%M:%S')
-    # records = redcap_handler.get_records(date_range_begin=last_redcap_pull, date_range_end=new_last_redcap_pull)
-    # import pdb; pdb.set_trace()
+    #redcap_client = pycap.Client(
+    #    api_token=args.redcaptoken,
+    #    url=API_URL_REDCAP,
+    #)
+    #new_last_redcap_pull = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    #last_redcap_pull = datetime.datetime.strptime(Setting().get(LAST_REDCAP_PULL_KEY), '%Y-%m-%d %H:%M:%S')
+    # records = redcap_client.get_records(date_range_begin=last_redcap_pull, date_range_end=new_last_redcap_pull)
+    #records = redcap_client.fetch_records(date_range_begin=new_last_redcap_pull, date_range_end=new_last_redcap_pull)
+    #import pdb; pdb.set_trace()
     for i, pilot_id in enumerate(pilot_ids):
         fields_records_download['record[{i}]'.format(i=i)] = pilot_id
 
