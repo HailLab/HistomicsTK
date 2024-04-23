@@ -48,9 +48,9 @@ var HeaderImageView = View.extend({
         const baselineGroupId = '5f0dc532c9f8c18253ae949c';
         let firstFolder;
         if (user.attributes.groups.indexOf(cgvhdGroupId) >= 0) {
-            firstFolder = '5f0dc45cc9f8c18253ae949b';
-        } else if (user.attributes.groups.indexOf(baselineGroupId) >= 0) {
             firstFolder = '5f0dc449c9f8c18253ae949a';
+        } else if (user.attributes.groups.indexOf(baselineGroupId) >= 0) {
+            firstFolder = '5f0dc45cc9f8c18253ae949b';
         }
         const analysis = router.getQuery('analysis') ? `&analysis=${router.getQuery('analysis')}` : '';
         const folder = router.getQuery('folder') ? `&folder=${router.getQuery('folder')}` : `&folder=${firstFolder}`;
