@@ -186,7 +186,6 @@ if __name__ == '__main__':
     import inspect
 
     import argparse
-    #import pycap
     import urllib
 
     from girder.models.setting import Setting
@@ -322,7 +321,6 @@ def get_from_redcap(user):
         pilot_ids = []
 
     #records = redcap_client.fetch_records(date_range_begin=new_last_redcap_pull, date_range_end=new_last_redcap_pull)
-    #import pdb; pdb.set_trace()
     for i, pilot_id in enumerate(pilot_ids):
         fields_records_download['record[{i}]'.format(i=i)] = pilot_id
 
@@ -792,6 +790,7 @@ def export(items, args):
         try:
             updated = parser.parse(item['updated'])
         except TypeError:
+            # import pdb; pdb.set_trace()
             updated = item['updated']
         start_range = startdate and startdate <= updated
         end_range = enddate and enddate >= updated
@@ -825,6 +824,10 @@ def export(items, args):
                     annotations_within_range.append(annotation)
             meta_annotations_only = dict()
             if annotations_within_range and item and 'meta' in item:
+                if 'record_id' in item['meta']:
+                    record_id = item['meta']['record_id']
+                else:
+                    record_id = item['name']
                 for m in item['meta']:
                     for annotator in annotations_within_range:
                         if annotator['annotation']['name'] in m:
@@ -839,7 +842,7 @@ def export(items, args):
                     parent_folder = Folder().load(folder['parentId'], force=True)
                     parent_folder_name = parent_folder['name']
                     # record_id = parent_folder['name'].split('_')[0]  this wasn't giving expected behavior on natiens_practice
-                    record_id = parent_folder['name']
+                    #record_id = parent_folder['name']
 
                     imgsrc_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'imgsrc')
                     json_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'json')
@@ -848,10 +851,6 @@ def export(items, args):
                     [make_dir_if_not_exists(f) for f in [imgsrc_files, json_files, mask_files, annotated_files]]
                     # return os.path.join(args.datadir, 'natiens_pilot', parent_folder['name'], folder['name'], 'json', item['name'] + '.json')
                     # import pdb; pdb.set_trace()
-                    if 'record_id' in item['meta']:
-                        record_id = item['meta']['record_id']
-                    else:
-                        record_id = item['name']
                     with open(os.path.join(args.datadir, args.foldername, parent_folder['name'], folder['name'], 'json', record_id + '.json'), 'wb') as f:
                         item['annotations'] = [anno for anno in annotations_within_range]
                         # output json file
@@ -930,6 +929,7 @@ def get_items_from_folder(folder):
     if set(args.operation) & set([
            PROCESS_OP, PROCESS_BASELINE_OP, PROCESS_NATIENS_OP, EXPORT_OP, EXPORT_NATIENS_OP, STATUS_OP, POLL_ANNOTATIONS_NATIENS_OP
        ]):
+        #import pdb; pdb.set_trace()
         item_url = args.url + ITEM_API_URL + '?folderId=' + folder + ITEM_QUERY_STRING
         items = requests.get(item_url, headers=item_headers)
         items = json.loads(items.content)
