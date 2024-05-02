@@ -9,8 +9,8 @@ parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
 parser.add_argument('-t', '--token', type=str, default=os.environ.get('GIRDER_TOKEN', 'DID_NOT_SUPPLY_GIRDER_TOKEN'),
                     help='Girder token for access')
 parser.add_argument('-u', '--url', type=str,
-                    # default='https://skin.app.vumc.org/api/v1/',
-                    default='http://ec2-54-152-138-170.compute-1.amazonaws.com/api/v1/',
+                    default='https://skin.app.vumc.org/api/v1/',
+#                    default='http://ec2-54-152-138-170.compute-1.amazonaws.com/api/v1/',
                     help='Url for histomicsTK server')
 parser.add_argument('-f', '--folder', type=str,
                     default='',

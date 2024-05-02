@@ -48,8 +48,8 @@ class SendToRedcapItemResource(ItemResource):
         return record_id, site_id, imaging_session, imaging_device_and_vectra, fidelity
 
     def _render_annotations(self, item, folder):
-        URL = 'http://ec2-54-152-138-170.compute-1.amazonaws.com/api/v1/'
-        # URL = 'https://skin.app.vumc.org/api/v1/'
+        # URL = 'http://ec2-54-152-138-170.compute-1.amazonaws.com/api/v1/'
+        URL = 'https://skin.app.vumc.org/api/v1/'
         MULTIPLE_ANNOTATIONS = 'annotation/item/'
         GIRDER_TOKEN = getCurrentToken()['_id']
         item_id = str(item['_id'])
