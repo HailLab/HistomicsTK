@@ -8,6 +8,7 @@ from dateutil import parser
 import pytz
 
 from girder.api.v1.item import Folder
+import girder_client
 from girder.utility import JsonEncoder
 
 
@@ -230,13 +231,9 @@ if __name__ == '__main__':
     argparser.add_argument('-i', '--ignoreexisting', action='store_true', help='Ignore whether a file exists or not')
     argparser.add_argument('-x', '--annotator', type=str, nargs='+', default=[], help='Users to export json for.')
     argparser.add_argument('-k', '--tokenid', type=str, default='', help='ID of Girder Token.')
+    argparser.add_argument('-g', '--girderapikey', type=str, default='', help='Girder API Key')
     args = argparser.parse_args()
 
-    item_headers = {'Girder-Token': args.token, 'Accept': 'application/json'}
-    largeimage_headers = {'Content-Type': 'application/x-www-form-urlencoded',
-                         'Girder-Token': args.token, 'Accept': 'application/json'}
-    access_headers = {'Content-Type': 'application/json',
-                      'Girder-Token': args.token, 'Accept': 'application/json'}
     fields_records_annotations = {
         'token': args.redcaptoken,
         'content': 'record',
@@ -484,17 +481,17 @@ def get_status(items):
     completed_annotations_cts = {}
     completed_annotations = {}
     for item in items:
-        annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + str(item['_id'])
-        annotations = json.loads(requests.get(annotations_access_url, headers=item_headers).content)
+        annotations_access_url = MULTIPLE_ANNOTATIONS + str(item['_id'])
+        annotations = gc.get(annotations_access_url)
         for annotation in annotations:
             try:
-                user = annotation['annotation']['description']
-                if user not in completed_annotations_cts:
-                    completed_annotations_cts[user] = 0
-                    completed_annotations[user] = []
+                annotator = annotation['annotation']['description']
+                if annotator not in completed_annotations_cts:
+                    completed_annotations_cts[annotator] = 0
+                    completed_annotations[annotator] = []
                 if len(annotation['annotation']['elements']) and len(annotation['annotation']['elements'][0]['points']):
-                    completed_annotations_cts[user] = completed_annotations_cts[user] + 1
-                    completed_annotations[user].append(annotation['itemId'])
+                    completed_annotations_cts[annotator] = completed_annotations_cts[annotator] + 1
+                    completed_annotations[annotator].append(annotation['itemId'])
             except Exception:
                 print("Skipped annotation " + annotation['_id'])
     print(completed_annotations)
@@ -601,9 +598,9 @@ def ingest_folder(user, pilot_id=None):
 
 def process_access_helper():
     group_worker_or_baseline = args.workergroup if 'process' in args.operation else args.baselinegroup
-    group_url = args.url + GROUP_API_URL + '/' + group_worker_or_baseline + '/member?ignore' + ITEM_QUERY_STRING
-    group = requests.get(group_url, headers=item_headers)
-    group = json.loads(group.content)
+    group_url = GROUP_API_URL + '/' + group_worker_or_baseline + '/member?ignore' + ITEM_QUERY_STRING
+    import pdb; pdb.set_trace()
+    group = gc.get(group_url)
     group_by_name = {g['login']: g for g in group}
     annotations_dict = [{'name': u['login'], 'description': u['firstName'] + ' ' + u['lastName']} for u in group]
     admin_user = {
@@ -648,15 +645,14 @@ def process_access_helper():
 
 
 def process_natiens_create_annotation_layers_update_links(items):
-    group_url = args.url + GROUP_API_URL + '/' + args.workergroup + '/member?ignore' + ITEM_QUERY_STRING
-    group = requests.get(group_url, headers=item_headers)
-    group = json.loads(group.content)
+    group_url = GROUP_API_URL + '/' + args.workergroup + '/member?ignore' + ITEM_QUERY_STRING
+    group = gc.get(group_url)
     group_by_name = {g['login']: g for g in group}
     # For creating all annotation layers
     annotations_dict = [{'name': u['login'], 'description': u['firstName'] + ' ' + u['lastName']} for u in group]
 
-    req_annotations = requests.post(API_URL_REDCAP, data=fields_records_annotations)
-    req_metadata = requests.post(API_URL_REDCAP, data=metadata_data)
+    req_annotations = gc.post(API_URL_REDCAP, data=fields_records_annotations)
+    req_metadata = gc.post(API_URL_REDCAP, data=metadata_data)
     annotator_names = []
     for m in json.loads(req_metadata.text):
         if m['field_name'] == 'annotator':
@@ -716,7 +712,7 @@ def process_natiens_create_annotation_layers_update_links(items):
                 link_field,
                 image_link,
             )
-            requests.post(API_URL_REDCAP, data=annotation_instrument_data)
+            gc.post(API_URL_REDCAP, data=annotation_instrument_data)
     return group_by_name, annotations_dict, access_dict
 
 
@@ -733,27 +729,26 @@ def process_baseline_helper(access_dict):
 
 
 def process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict):
-    access_url = args.url + ACCESS_API_URL + '/' + args.folder + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + ACCESS_QUERY_STRING
-    access = requests.put(access_url, headers=item_headers)
+    import pdb; pdb.set_trace()
+    access_url = ACCESS_API_URL + '/' + args.folder + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + ACCESS_QUERY_STRING
+    access = gc.put(access_url)
 
     for item in items:
-        image_url = args.url + ITEM_API_URL + '/' + str(item['_id']) + '/files' + '?ignore' + ITEM_QUERY_STRING
-        image_headers = {'Girder-Token': args.token, 'Accept': 'application/json'}
-        image = requests.get(image_url, headers=image_headers)
-        image = json.loads(image.content)
+        image_url = ITEM_API_URL + '/' + str(item['_id']) + '/files' + '?ignore' + ITEM_QUERY_STRING
+	image = gc.get(image_url)  # @TODO Could use gc.getItem(item['_id'])
         file_id = image[0]['_id']
 
-        largeimage_url = args.url + ITEM_API_URL + '/' + str(item['_id']) + '/tiles?fileId=' + file_id + LARGEIMAGE_QUERY_STRING
-        requests.post(largeimage_url, headers=largeimage_headers)
-
-        annotations_url = args.url + ANNOTATION_API_URL + '?itemId=' + str(item['_id']) + ITEM_QUERY_STRING
-        annotations = requests.get(annotations_url, headers=item_headers)
-        annotations = json.loads(annotations.content)
-        # [requests.delete(args.url + ANNOTATION_API_URL + '/' + a['_id'], headers=item_headers) for a in annotations]
+        largeimage_url = ITEM_API_URL + '/' + str(item['_id']) + '/tiles?fileId=' + file_id + LARGEIMAGE_QUERY_STRING
+        try:
+            gc.post(largeimage_url)
+        except girder_client.HttpError:
+            pass
+        annotations_url = ANNOTATION_API_URL + '?itemId=' + str(item['_id']) + ITEM_QUERY_STRING
+        annotations = gc.get(annotations_url)
         annotations_details = {a['_id']: a['annotation'] for a in annotations}
-        annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + str(item['_id'])
-        requests.post(annotations_access_url, headers=item_headers, data=json.dumps([a for a in annotations_dict if a not in annotations_details.values()]))
-        annotation_access_update_url = args.url + ANNOTATION
+        annotations_access_url = MULTIPLE_ANNOTATIONS + str(item['_id'])
+        gc.post(annotations_access_url, data=json.dumps([a for a in annotations_dict if a not in annotations_details.values()]))
+        annotation_access_update_url = ANNOTATION
         for aid, annotation in annotations_details.iteritems():
             try:
                 a = group_by_name[annotation['name']]
@@ -769,7 +764,7 @@ def process_generate_thumbnails_and_permissions(items, group_by_name, annotation
                 }]
                 # if a['login'] == 'kelseyparks2022':
                 #     import pdb; pdb.set_trace()
-                requests.put(annotation_access_update_url + aid + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + '&public=false', headers=access_headers)
+                gc.put(annotation_access_update_url + aid + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + '&public=false')
             except KeyError:
                 print('No user {0} in group'.format(annotation['name']))
 
@@ -797,9 +792,8 @@ def export(items, args):
         start_range = startdate and startdate <= updated
         end_range = enddate and enddate >= updated
         if start_range and end_range or start_range and not enddate or end_range and not startdate or not startdate and not enddate:
-            annotations_access_url = args.url + MULTIPLE_ANNOTATIONS + str(item['_id'])
-            item_headers = {'Girder-Token': args.token, 'Accept': 'application/json'}
-            annotations_blob = requests.get(annotations_access_url, headers=item_headers)
+            annotations_access_url = MULTIPLE_ANNOTATIONS + str(item['_id'])
+            annotations_blob = gc.get(annotations_access_url)
             # @TODO: I'm not sure why there are some \n, characters showing up in output
             #        but removing them seems to solve the issue 
             annotations_blob.content.replace(",\n", "").replace("\n", "")
@@ -927,23 +921,14 @@ def set_token_expiration(token):
 def get_items_from_folder(folder):
     pilot_ids = set()
     items = []
-    user = None
     if set(args.operation) & set([
            PROCESS_OP, PROCESS_BASELINE_OP, PROCESS_NATIENS_OP, EXPORT_OP, EXPORT_NATIENS_OP, STATUS_OP, POLL_ANNOTATIONS_NATIENS_OP
        ]):
-        item_url = args.url + ITEM_API_URL + '?folderId=' + folder + ITEM_QUERY_STRING
-        items = requests.get(item_url, headers=item_headers)
-        items = json.loads(items.content)
+        item_url = ITEM_API_URL + '?folderId=' + folder + ITEM_QUERY_STRING
+        items = gc.get(item_url)
         if 'message' in items:
             sys.stderr.write(items['message'] + "\n")
-    if set(args.operation) & set([INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, POLL_ANNOTATIONS_NATIENS_OP, PROCESS_NATIENS_OP]):
-        current_token = Token().load(args.token, force=True, objectId=False)
-        try:
-            user = User().load(current_token['userId'], force=True)
-        except TypeError:
-            raise TypeError("Ensure user token is still active.")
-
-    return items, user
+    return items
 
 
 def remove_all_except_last(string, char):
@@ -1024,7 +1009,10 @@ class DateTimeEncoder(json.JSONEncoder):
 
 
 if __name__ == "__main__":
-    items, user = get_items_from_folder(args.folder)
+    gc = girder_client.GirderClient(apiUrl=args.url)
+    user = gc.authenticate(apiKey=args.girderapikey)
+
+    items = get_items_from_folder(args.folder)
     # Get status of annotation layers from SkinApp
     if STATUS_OP in args.operation:
         get_status(items)
@@ -1049,15 +1037,15 @@ if __name__ == "__main__":
     if PROCESS_OP in args.operation or PROCESS_BASELINE_OP in args.operation:
         group_by_name, annotations_dict, access_dict = process_access_helper()
     # Permissions for annotation layers is different for NATIENS
+    if PROCESS_BASELINE_OP in args.operation:
+        process_baseline_helper(access_dict)
     if PROCESS_NATIENS_OP in args.operation:
         folder = Folder().load(args.folder, force=True)
         all_items = list(all_child_items(parent=folder, parentType='folder', user=user))
         group_by_name, annotations_dict, access_dict = process_natiens_create_annotation_layers_update_links(all_items)
         process_generate_thumbnails_and_permissions(all_items, group_by_name, annotations_dict, access_dict)
-    if PROCESS_BASELINE_OP in args.operation:
-        process_baseline_helper(access_dict)
     # if any kind of processing needs to be done, set permissions
-    if any(['process' in op for op in args.operation]):
+    elif any(['process' in op for op in args.operation]):
         process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict)
     # Exports geoJSON-like files if any kind of export to be done
     if any(['export' in op for op in args.operation]):
