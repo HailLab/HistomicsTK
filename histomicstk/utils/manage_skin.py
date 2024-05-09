@@ -301,7 +301,7 @@ def get_or_create_girder_folder(parent, folderName, user, parentType='collection
 
 def get_from_redcap(user):
     new_last_redcap_pull = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    last_redcap_pull = datetime.datetime.strptime(Setting().get(LAST_REDCAP_PULL_KEY), '%Y-%m-%d %H:%M:%S')
+    last_redcap_pull = datetime.datetime.strptime(Setting().get(LAST_REDCAP_PULL_KEY, new_last_redcap_pull), '%Y-%m-%d %H:%M:%S')
     fields_records_download = {
         'token': args.redcaptoken,
         'content': 'record',
@@ -314,8 +314,8 @@ def get_from_redcap(user):
     response = requests.post(API_URL_REDCAP, data=fields_records_download)
 
     if response.status_code == 200:
-        records = response.json()
-        pilot_ids = [get_natiens_id(r) for r in response]
+        records = json.loads(response.text)
+        pilot_ids = [get_natiens_id(r) for r in records]
     else:
         pilot_ids = []
 
@@ -475,6 +475,7 @@ def get_from_redcap(user):
                         f = open(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc', filename_output), 'wb')
                         f.write(req.content)
                         f.close()
+    Setting().set(LAST_REDCAP_PULL_KEY, new_last_redcap_pull)
 
 
 def get_status(items):
@@ -525,7 +526,7 @@ def poll_annotations_natiens(user):
             raise ValidationException('Last REDCap Pull must be a date time.')
 
     new_last_redcap_pull = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    last_redcap_pull = datetime.datetime.strptime(Setting().get(LAST_REDCAP_PULL_KEY), '%Y-%m-%d %H:%M:%S')
+    last_redcap_pull = datetime.datetime.strptime(Setting().get(LAST_REDCAP_PULL_KEY, new_last_redcap_pull), '%Y-%m-%d %H:%M:%S')
 
     # Gather record names from folder names
     folder_natiens = Folder().load(args.folder, force=True)
@@ -536,6 +537,7 @@ def poll_annotations_natiens(user):
         'type': 'flat',
         'forms': 'annotation',
         'dateRangeBegin': last_redcap_pull,
+        'dateRangeEnd': new_last_redcap_pull,
     }
     req_records = requests.post(API_URL_REDCAP, data=fields_records)
     # pilot_ids = {}
@@ -793,14 +795,7 @@ def export(items, args):
         end_range = enddate and enddate >= updated
         if start_range and end_range or start_range and not enddate or end_range and not startdate or not startdate and not enddate:
             annotations_access_url = MULTIPLE_ANNOTATIONS + str(item['_id'])
-            annotations_blob = gc.get(annotations_access_url)
-            # @TODO: I'm not sure why there are some \n, characters showing up in output
-            #        but removing them seems to solve the issue 
-            annotations_blob.content.replace(",\n", "").replace("\n", "")
-            try:
-                annotations = json.loads(annotations_blob.content.replace(",\n", "").replace("\n", ""), strict=False)
-            except ValueError:
-                annotations = json.loads(annotations_blob.content, strict=False)
+            annotations = gc.get(annotations_access_url)
             annotations_within_range = []
             for annotation in annotations:
                 if annotation['updated']:
@@ -825,6 +820,10 @@ def export(items, args):
                         if annotator['annotation']['name'] in m:
                              meta_annotations_only[m] = item['meta'][m]
                 item['meta'] = meta_annotations_only
+                if 'record_id' in item['meta']:
+                    record_id = item['meta']['record_id']
+                else:
+                    record_id = item['name']
                 if EXPORT_NATIENS_OP in args.operation:
                     pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity = parse_filename(item['name'])
                     # Father session_id and record_id from folder structure since it's not contained in the file name
@@ -843,10 +842,6 @@ def export(items, args):
                     [make_dir_if_not_exists(f) for f in [imgsrc_files, json_files, mask_files, annotated_files]]
                     # return os.path.join(args.datadir, 'natiens_pilot', parent_folder['name'], folder['name'], 'json', item['name'] + '.json')
                     # import pdb; pdb.set_trace()
-                    if 'record_id' in item['meta']:
-                        record_id = item['meta']['record_id']
-                    else:
-                        record_id = item['name']
                     with open(os.path.join(args.datadir, args.foldername, parent_folder['name'], folder['name'], 'json', record_id + '.json'), 'wb') as f:
                         item['annotations'] = [anno for anno in annotations_within_range]
                         # output json file
@@ -1021,10 +1016,10 @@ if __name__ == "__main__":
         get_from_redcap(user)
     # Check if new annotations are available in NATIENS to process
     if POLL_ANNOTATIONS_NATIENS_OP in args.operation:
+        import pdb; pdb.set_trace()
+        get_from_redcap(user)
         pilot_ids, new_last_redcap_pull = poll_annotations_natiens(user)
         if pilot_ids:
-            get_from_redcap(user)
-            Setting().set(LAST_REDCAP_PULL_KEY, new_last_redcap_pull)
             for pilot_id in pilot_ids:
                 # grabbing new items from ingested folder
                 items_new = ingest_folder(user, pilot_id)
