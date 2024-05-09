@@ -1005,7 +1005,8 @@ class DateTimeEncoder(json.JSONEncoder):
 
 if __name__ == "__main__":
     gc = girder_client.GirderClient(apiUrl=args.url)
-    user = gc.authenticate(apiKey=args.girderapikey)
+    gc.authenticate(apiKey=args.girderapikey)
+    user = User().load(gc.get('user/me')['_id'], force=True)
 
     items = get_items_from_folder(args.folder)
     # Get status of annotation layers from SkinApp
