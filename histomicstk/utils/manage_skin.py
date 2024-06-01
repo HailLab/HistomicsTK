@@ -299,183 +299,211 @@ def get_or_create_girder_folder(parent, folderName, user, parentType='collection
     return folder
 
 
-def get_from_redcap(user):
-    new_last_redcap_pull = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+def get_from_redcap(user, update=True):
+    chicago_tz = pytz.timezone('America/Chicago')
+    new_last_redcap_pull = datetime.datetime.now(chicago_tz).strftime('%Y-%m-%d %H:%M:%S')
     last_redcap_pull = datetime.datetime.strptime(Setting().get(LAST_REDCAP_PULL_KEY, new_last_redcap_pull), '%Y-%m-%d %H:%M:%S')
-    fields_records_download = {
+
+    # First, pull the logs to find which records were updated
+    log_params = {
         'token': args.redcaptoken,
-        'content': 'record',
+        'content': 'log',
         'format': 'json',
         'type': 'flat',
-        'forms': 'skinio_photography',
-        'dateRangeBegin': last_redcap_pull.strftime('%Y-%m-%d %H:%M:%S'),
-        'dateRangeEnd': new_last_redcap_pull,
+        'logtype': 'record',
+        'beginTime': last_redcap_pull.strftime('%Y-%m-%d %H:%M:%S'),
+        'endTime': new_last_redcap_pull,
     }
-    response = requests.post(API_URL_REDCAP, data=fields_records_download)
 
-    if response.status_code == 200:
-        records = json.loads(response.text)
-        pilot_ids = [get_natiens_id(r) for r in records]
+    log_response = requests.post(API_URL_REDCAP, data=log_params)
+
+    if log_response.status_code == 200:
+        logs = json.loads(log_response.text)
+        # Extract the record IDs from the logs
+        updated_record_ids = set(log['record'] for log in logs if 'Update record' in log['action'] or 'Create record' in log['action'])
     else:
-        pilot_ids = []
+        updated_record_ids = set()
 
-    #records = redcap_client.fetch_records(date_range_begin=new_last_redcap_pull, date_range_end=new_last_redcap_pull)
-    #import pdb; pdb.set_trace()
-    for i, pilot_id in enumerate(pilot_ids):
-        fields_records_download['record[{i}]'.format(i=i)] = pilot_id
+    # if updated records, pull images
+    if updated_record_ids:
+        fields_records_download = {
+            'token': args.redcaptoken,
+            'content': 'record',
+            'format': 'json',
+            'type': 'flat',
+            'forms': 'skinio_photography',
+        }
+        # Add each record as its own key
+        for i, record_id in enumerate(updated_record_ids):
+            fields_records_download['records[' + str(i) + ']'] = record_id
+        response = requests.post(API_URL_REDCAP, data=fields_records_download)
 
-    req_records = requests.post(API_URL_REDCAP, data=fields_records_download)
-    records = {}
+        if response.status_code == 200:
+            records = json.loads(response.text)
+            pilot_ids = [get_natiens_id(r) for r in records]
+        else:
+            pilot_ids = []
 
-    fields_file_base = {
-        'token': args.redcaptoken,
-        'content': 'file',
-        'action': 'export',
-    }
-    file_fields_flash = [
-        'trunk_ant_f',
-        'trunk_post_f',
-    ]
-    file_fields_flash_all = [
-        'face_f',
-        'trunk_ant_f',
-        'trunk_post_f',
-        'up_arm_ant_left_f',
-        'up_arm_ant_right_f',
-        'up_arm_post_left_f',
-        'up_arm_post_right_f',
-        'forearm_dors_left_f',
-        'forearm_dors_right_f',
-        'forearm_vol_left_f',
-        'forearm_vol_right_f',
-        'thigh_ant_left_f',
-        'thigh_ant_right_f',
-        'thigh_post_left_f',
-        'thigh_post_right_f',
-        'shin_left_f',
-        'shin_right_f',
-        'calf_left_f',
-        'calf_right_f',
-        'bonus1_f',
-        'bonus2_f',
-        'bonus3_f',
-        'bonus4_f',
-        'bonus5_f',
-    ]
-    file_fields_noflash = [
-        'trunk_ant_nf',
-        'trunk_post_nf',
-    ]
-    file_fields_noflash_all = [
-        'face_nf',
-        'trunk_ant_nf',
-        'trunk_post_nf',
-        'up_arm_ant_left_nf',
-        'up_arm_ant_right_nf',
-        'up_arm_post_left_nf',
-        'up_arm_post_right_nf',
-        'forearm_dors_left_nf',
-        'forearm_dors_right_nf',
-        'forearm_vol_left_nf',
-        'forearm_vol_right_nf',
-        'thigh_ant_left_nf',
-        'thigh_ant_right_nf',
-        'thigh_post_left_nf',
-        'thigh_post_right_nf',
-        'shin_left_nf',
-        'shin_right_nf',
-        'calf_left_nf',
-        'calf_right_nf',
-        'bonus1_nf',
-        'bonus2_nf',
-        'bonus3_nf',
-        'bonus4_nf',
-        'bonus5_nf',
-    ]
-    file_fields_annotator = [
-        'trunk_ant_nf1',
-        'trunk_post_nf1',
-    ]
-    file_fields_annotator_all = [
-        'face_nf1',
-        'trunk_ant_nf1',
-        'trunk_post_nf1',
-        'up_arm_ant_left_nf1',
-        'up_arm_ant_right_nf1',
-        'up_arm_post_left_nf1',
-        'up_arm_post_right_nf1',
-        'forearm_dors_left_nf1',
-        'forearm_dors_right_nf1',
-        'forearm_vol_left_nf1',
-        'forearm_vol_right_nf1',
-        'thigh_ant_left_nf1',
-        'thigh_ant_right_nf1',
-        'thigh_post_left_nf1',
-        'thigh_post_right_nf1',
-        'shin_left_nf1',
-        'shin_right_nf1',
-        'calf_left_nf1',
-        'calf_right_nf1',
-        'bonus1_nf1',
-        'bonus2_nf1',
-        'bonus3_nf1',
-        'bonus4_nf1',
-        'bonus5_nf1',
-    ]
-    file_fields_photo = file_fields_flash + file_fields_noflash
-    annotators = None
+        #records = redcap_client.fetch_records(date_range_begin=new_last_redcap_pull, date_range_end=new_last_redcap_pull)
+        #import pdb; pdb.set_trace()
+        for i, pilot_id in enumerate(pilot_ids):
+            fields_records_download['record[{i}]'.format(i=i)] = pilot_id
 
-    filename_regex = r'name="(.*)"'
-    phi_free_field_names = {}
+        req_records = requests.post(API_URL_REDCAP, data=fields_records_download)
+        records = {}
 
-    for r in json.loads(req_records.text):
-        natiens_id = get_natiens_id(r)
-        if natiens_id:  # only extract patients which have a pilot ID
-            record_id = r['record_id']
-            session_id = r['redcap_repeat_instance'] 
-            patient_folder_name = record_id + '_' + natiens_id
-            try:
-                photography_date = '_' + str(datetime.datetime.strptime(r['date_photography'], '%Y-%m-%d').strftime('%y%m%d'))
-            except ValueError:
-                photography_date = ''
-            session_folder_name = str(r['redcap_repeat_instance']) + photography_date
-            make_dir_if_not_exists(os.path.join(args.datadir))
-            make_dir_if_not_exists(os.path.join(args.datadir, args.foldername))
-            make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id))
-            make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name)))
-            # If we've already pulled the files, don't do it again
-            exists = make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc'))
-            if args.phi:  # include all fields, regardless of PHI
-                fields_keep = file_fields_photo
-            else:
-                if file_fields_flash != file_fields_flash_all or file_fields_noflash != file_fields_noflash_all:
-                    field_range = [file_fields_flash_all.index(f) for f in file_fields_flash]
-                else:
-                    field_range = range(0, 24)
-                phi_checks = map(lambda x: 'phi_check' + str(x) + '___0', field_range)
-                
+        fields_file_base = {
+            'token': args.redcaptoken,
+            'content': 'file',
+            'action': 'export',
+        }
+        file_fields_flash = [
+            'trunk_ant_f',
+            'trunk_post_f',
+        ]
+        file_fields_flash_all = [
+            'face_f',
+            'trunk_ant_f',
+            'trunk_post_f',
+            'up_arm_ant_left_f',
+            'up_arm_ant_right_f',
+            'up_arm_post_left_f',
+            'up_arm_post_right_f',
+            'forearm_dors_left_f',
+            'forearm_dors_right_f',
+            'forearm_vol_left_f',
+            'forearm_vol_right_f',
+            'thigh_ant_left_f',
+            'thigh_ant_right_f',
+            'thigh_post_left_f',
+            'thigh_post_right_f',
+            'shin_left_f',
+            'shin_right_f',
+            'calf_left_f',
+            'calf_right_f',
+            'bonus1_f',
+            'bonus2_f',
+            'bonus3_f',
+            'bonus4_f',
+            'bonus5_f',
+        ]
+        file_fields_noflash = [
+            'trunk_ant_nf',
+            'trunk_post_nf',
+        ]
+        file_fields_noflash_all = [
+            'face_nf',
+            'trunk_ant_nf',
+            'trunk_post_nf',
+            'up_arm_ant_left_nf',
+            'up_arm_ant_right_nf',
+            'up_arm_post_left_nf',
+            'up_arm_post_right_nf',
+            'forearm_dors_left_nf',
+            'forearm_dors_right_nf',
+            'forearm_vol_left_nf',
+            'forearm_vol_right_nf',
+            'thigh_ant_left_nf',
+            'thigh_ant_right_nf',
+            'thigh_post_left_nf',
+            'thigh_post_right_nf',
+            'shin_left_nf',
+            'shin_right_nf',
+            'calf_left_nf',
+            'calf_right_nf',
+            'bonus1_nf',
+            'bonus2_nf',
+            'bonus3_nf',
+            'bonus4_nf',
+            'bonus5_nf',
+        ]
+        file_fields_annotator = [
+            'trunk_ant_nf1',
+            'trunk_post_nf1',
+        ]
+        file_fields_annotator_all = [
+            'face_nf1',
+            'trunk_ant_nf1',
+            'trunk_post_nf1',
+            'up_arm_ant_left_nf1',
+            'up_arm_ant_right_nf1',
+            'up_arm_post_left_nf1',
+            'up_arm_post_right_nf1',
+            'forearm_dors_left_nf1',
+            'forearm_dors_right_nf1',
+            'forearm_vol_left_nf1',
+            'forearm_vol_right_nf1',
+            'thigh_ant_left_nf1',
+            'thigh_ant_right_nf1',
+            'thigh_post_left_nf1',
+            'thigh_post_right_nf1',
+            'shin_left_nf1',
+            'shin_right_nf1',
+            'calf_left_nf1',
+            'calf_right_nf1',
+            'bonus1_nf1',
+            'bonus2_nf1',
+            'bonus3_nf1',
+            'bonus4_nf1',
+            'bonus5_nf1',
+        ]
+        file_fields_photo = file_fields_flash + file_fields_noflash
+        annotators = None
+
+        filename_regex = r'name="(.*)"'
+        phi_free_field_names = {}
+
+        for r in json.loads(req_records.text):
+            natiens_id = get_natiens_id(r)
+            if natiens_id:  # only extract patients which have a pilot ID
+                record_id = r['record_id']
+                session_id = r['redcap_repeat_instance'] 
+                patient_folder_name = record_id + '_' + natiens_id
                 try:
-                    fields_keep = [file_fields_flash_all[f] for i, f in enumerate(field_range) if not int(r[phi_checks[i]])] + [file_fields_noflash_all[f] for i, f in enumerate(field_range) if not int(r[phi_checks[i]])]
-                except ValueError, AttributeError:
-                    pass
-            download_files = [merge_dicts(fields_file_base, {'record': record_id, 'repeat_instance': session_id, 'field': field_file}) for field_file in fields_keep]
-            for field in download_files:
-                # Currently only pulling images which were captured on randomization day and day of reep
-                if int(r['day_0___0']) or int(r['day_reepithelization___0']) and (not exists or args.ignoreexisting):
-                    req = requests.post(API_URL_REDCAP, data=field)
-                    # Project ID is different for pilot projects than NATIENS
-                    pilot_field_name = get_natiens_id_field_name(r)
-                    project_id = r[pilot_field_name] if 'ilot' in pilot_field_name else r['record_id'] + '_' + r['site']
-                    filename_original = re.findall(filename_regex, req.headers['Content-Type'])
-                    if filename_original:
-                        suffix = os.path.splitext(r[field['field']])[1]
-                        file_base_name = '_'.join([project_id, r['imaging_session'].rjust(2, '0'), r['imaging_device___1'] + FILE_FIELDS_VECTRA[field['field']]])
-                        filename_output = file_base_name + suffix 
-                        print(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc', filename_output))
-                        f = open(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc', filename_output), 'wb')
-                        f.write(req.content)
-                        f.close()
-    Setting().set(LAST_REDCAP_PULL_KEY, new_last_redcap_pull)
+                    photography_date = '_' + str(datetime.datetime.strptime(r['date_photography'], '%Y-%m-%d').strftime('%y%m%d'))
+                except ValueError:
+                    photography_date = ''
+                session_folder_name = str(r['redcap_repeat_instance']) + photography_date
+                make_dir_if_not_exists(os.path.join(args.datadir))
+                make_dir_if_not_exists(os.path.join(args.datadir, args.foldername))
+                make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id))
+                make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name)))
+                # If we've already pulled the files, don't do it again
+                exists = make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc'))
+                if args.phi:  # include all fields, regardless of PHI
+                    fields_keep = file_fields_photo
+                else:
+                    if file_fields_flash != file_fields_flash_all or file_fields_noflash != file_fields_noflash_all:
+                        field_range = [file_fields_flash_all.index(f) for f in file_fields_flash]
+                    else:
+                        field_range = range(0, 24)
+                    phi_checks = map(lambda x: 'phi_check' + str(x) + '___0', field_range)
+                    
+                    try:
+                        fields_keep = [file_fields_flash_all[f] for i, f in enumerate(field_range) if not int(r[phi_checks[i]])] + [file_fields_noflash_all[f] for i, f in enumerate(field_range) if not int(r[phi_checks[i]])]
+                    except ValueError, AttributeError:
+                        pass
+                download_files = [merge_dicts(fields_file_base, {'record': record_id, 'repeat_instance': session_id, 'field': field_file}) for field_file in fields_keep]
+                for field in download_files:
+                    # Currently only pulling images which were captured on randomization day and day of reep
+                    if int(r['day_0___0']) or int(r['day_reepithelization___0']) and (not exists or args.ignoreexisting):
+                        req = requests.post(API_URL_REDCAP, data=field)
+                        # Project ID is different for pilot projects than NATIENS
+                        pilot_field_name = get_natiens_id_field_name(r)
+                        project_id = r[pilot_field_name] if 'ilot' in pilot_field_name else r['record_id'] + '_' + r['site']
+                        filename_original = re.findall(filename_regex, req.headers['Content-Type'])
+                        if filename_original:
+                            suffix = os.path.splitext(r[field['field']])[1]
+                            file_base_name = '_'.join([project_id, r['imaging_session'].rjust(2, '0'), r['imaging_device___1'] + FILE_FIELDS_VECTRA[field['field']]])
+                            filename_output = file_base_name + suffix 
+                            print(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc', filename_output))
+                            f = open(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc', filename_output), 'wb')
+                            f.write(req.content)
+                            f.close()
+    # Update last_redcap_pull so we know only to pull new items
+    if update:
+        gc.put('system/setting?key=' + urllib.quote_plus(LAST_REDCAP_PULL_KEY) + '&value=' + urllib.quote_plus(new_last_redcap_pull))
+    return updated_record_ids, new_last_redcap_pull
 
 
 def get_status(items):
@@ -525,32 +553,53 @@ def poll_annotations_natiens(user):
         except ValueError:
             raise ValidationException('Last REDCap Pull must be a date time.')
 
-    new_last_redcap_pull = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    chicago_tz = pytz.timezone('America/Chicago')
+    new_last_redcap_pull = datetime.datetime.now(chicago_tz).strftime('%Y-%m-%d %H:%M:%S')
     last_redcap_pull = datetime.datetime.strptime(Setting().get(LAST_REDCAP_PULL_KEY, new_last_redcap_pull), '%Y-%m-%d %H:%M:%S')
 
-    # Gather record names from folder names
-    folder_natiens = Folder().load(args.folder, force=True)
-    fields_records = {
+    log_params = {
         'token': args.redcaptoken,
-        'content': 'record',
+        'content': 'log',
         'format': 'json',
         'type': 'flat',
-        'forms': 'annotation',
-        'dateRangeBegin': last_redcap_pull,
-        'dateRangeEnd': new_last_redcap_pull,
+        'logtype': 'record',
+        'beginTime': last_redcap_pull.strftime('%Y-%m-%d %H:%M:%S'),
+        'endTime': new_last_redcap_pull,
     }
-    req_records = requests.post(API_URL_REDCAP, data=fields_records)
-    # pilot_ids = {}
+    log_response = requests.post(API_URL_REDCAP, data=log_params)
 
-    # for r in json.loads(req_records.text):
-    #     pilot_ids.append(r['pilot_id2']
-    req_records = json.loads(req_records.text)
-    # In some REDCap databases, natiens_id is called pilot_id2
-    if req_records:
-        natiens_id_field = get_natiens_id_field_name(req_records[0])
-        natiens_ids = set(r[natiens_id_field] for r in req_records if r[natiens_id_field]) or set()
+    if log_response.status_code == 200:
+        logs = json.loads(log_response.text)
+        # Extract the record IDs from the logs
+        updated_annotation_record_ids = set(log['record'] for log in logs if 'Update record' in log['action'] or 'Create record' in log['action'])
     else:
-        natiens_ids = set()
+        updated_annotation_record_ids = set()
+
+    natiens_ids = set()
+    if updated_annotation_record_ids:
+        # Gather record names from folder names
+        folder_natiens = Folder().load(args.folder, force=True)
+        fields_records = {
+            'token': args.redcaptoken,
+            'content': 'record',
+            'format': 'json',
+            'type': 'flat',
+            'forms': 'annotation',
+        }
+        # Add each record as its own key
+        for i, record_id in enumerate(updated_annotation_record_ids):
+            fields_records['records[' + str(i) + ']'] = record_id
+        req_records = requests.post(API_URL_REDCAP, data=fields_records)
+        # pilot_ids = {}
+
+        # for r in json.loads(req_records.text):
+        #     pilot_ids.append(r['pilot_id2']
+        req_records = json.loads(req_records.text)
+        # In some REDCap databases, natiens_id is called pilot_id2
+        if req_records:
+            natiens_id_field = get_natiens_id_field_name(req_records[0])
+            natiens_ids = set(r[natiens_id_field] for r in req_records if r[natiens_id_field]) or set()
+        gc.put('system/setting?key=' + urllib.quote_plus(LAST_REDCAP_PULL_KEY) + '&value=' + urllib.quote_plus(new_last_redcap_pull))
     return natiens_ids, new_last_redcap_pull
 
 
@@ -577,7 +626,7 @@ def ingest_folder_sessions(record_folder):
         session_folder = get_or_create_girder_folder(record_folder, session_id, user, 'folder')
         all_item_names = [i['name'] for i in Folder().childItems(folder=session_folder)]
         # only upload new images
-        all_new_image_names = [f for f in glob.glob(os.path.join(args.datadir, args.foldername, record_id, session_id, 'imgsrc', '*')) if f not in all_item_names]
+        all_new_image_names = [f for f in glob.glob(os.path.join(args.datadir, args.foldername, record_id, session_id, 'imgsrc', '*')) if os.path.basename(f) not in all_item_names]
         items = items + set_image_metadata(all_new_image_names, session_folder, user, record_id, session_id)
     return items
 
@@ -601,7 +650,6 @@ def ingest_folder(user, pilot_id=None):
 def process_access_helper():
     group_worker_or_baseline = args.workergroup if 'process' in args.operation else args.baselinegroup
     group_url = GROUP_API_URL + '/' + group_worker_or_baseline + '/member?ignore' + ITEM_QUERY_STRING
-    import pdb; pdb.set_trace()
     group = gc.get(group_url)
     group_by_name = {g['login']: g for g in group}
     annotations_dict = [{'name': u['login'], 'description': u['firstName'] + ' ' + u['lastName']} for u in group]
@@ -652,9 +700,8 @@ def process_natiens_create_annotation_layers_update_links(items):
     group_by_name = {g['login']: g for g in group}
     # For creating all annotation layers
     annotations_dict = [{'name': u['login'], 'description': u['firstName'] + ' ' + u['lastName']} for u in group]
-
-    req_annotations = gc.post(API_URL_REDCAP, data=fields_records_annotations)
-    req_metadata = gc.post(API_URL_REDCAP, data=metadata_data)
+    req_annotations = requests.post(API_URL_REDCAP, data=fields_records_annotations)
+    req_metadata = requests.post(API_URL_REDCAP, data=metadata_data)
     annotator_names = []
     for m in json.loads(req_metadata.text):
         if m['field_name'] == 'annotator':
@@ -714,7 +761,7 @@ def process_natiens_create_annotation_layers_update_links(items):
                 link_field,
                 image_link,
             )
-            gc.post(API_URL_REDCAP, data=annotation_instrument_data)
+            requests.post(API_URL_REDCAP, data=annotation_instrument_data)
     return group_by_name, annotations_dict, access_dict
 
 
@@ -731,13 +778,12 @@ def process_baseline_helper(access_dict):
 
 
 def process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict):
-    import pdb; pdb.set_trace()
     access_url = ACCESS_API_URL + '/' + args.folder + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + ACCESS_QUERY_STRING
     access = gc.put(access_url)
 
     for item in items:
         image_url = ITEM_API_URL + '/' + str(item['_id']) + '/files' + '?ignore' + ITEM_QUERY_STRING
-	image = gc.get(image_url)  # @TODO Could use gc.getItem(item['_id'])
+        image = gc.get(image_url)  # @TODO Could use gc.getItem(item['_id'])
         file_id = image[0]['_id']
 
         largeimage_url = ITEM_API_URL + '/' + str(item['_id']) + '/tiles?fileId=' + file_id + LARGEIMAGE_QUERY_STRING
@@ -1005,7 +1051,7 @@ class DateTimeEncoder(json.JSONEncoder):
 
 if __name__ == "__main__":
     gc = girder_client.GirderClient(apiUrl=args.url)
-    gc.authenticate(apiKey=args.girderapikey)
+    gc.authenticate(username='admin', apiKey=args.girderapikey, interactive=True)
     user = User().load(gc.get('user/me')['_id'], force=True)
 
     items = get_items_from_folder(args.folder)
@@ -1017,8 +1063,7 @@ if __name__ == "__main__":
         get_from_redcap(user)
     # Check if new annotations are available in NATIENS to process
     if POLL_ANNOTATIONS_NATIENS_OP in args.operation:
-        import pdb; pdb.set_trace()
-        get_from_redcap(user)
+        get_from_redcap(user, update=False)
         pilot_ids, new_last_redcap_pull = poll_annotations_natiens(user)
         if pilot_ids:
             for pilot_id in pilot_ids:
