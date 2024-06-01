@@ -187,7 +187,6 @@ if __name__ == '__main__':
     import inspect
 
     import argparse
-    #import pycap
     import urllib
 
     from girder.models.setting import Setting
@@ -836,6 +835,7 @@ def export(items, args):
         try:
             updated = parser.parse(item['updated'])
         except TypeError:
+            # import pdb; pdb.set_trace()
             updated = item['updated']
         start_range = startdate and startdate <= updated
         end_range = enddate and enddate >= updated
@@ -861,6 +861,10 @@ def export(items, args):
                     annotations_within_range.append(annotation)
             meta_annotations_only = dict()
             if annotations_within_range and item and 'meta' in item:
+                if 'record_id' in item['meta']:
+                    record_id = item['meta']['record_id']
+                else:
+                    record_id = item['name']
                 for m in item['meta']:
                     for annotator in annotations_within_range:
                         if annotator['annotation']['name'] in m:
@@ -879,7 +883,7 @@ def export(items, args):
                     parent_folder = Folder().load(folder['parentId'], force=True)
                     parent_folder_name = parent_folder['name']
                     # record_id = parent_folder['name'].split('_')[0]  this wasn't giving expected behavior on natiens_practice
-                    record_id = parent_folder['name']
+                    #record_id = parent_folder['name']
 
                     imgsrc_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'imgsrc')
                     json_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'json')
