@@ -30,6 +30,7 @@ from .folder_first_image import FolderFirstImageResource
 from .send_to_redcap import SendToRedcapItemResource
 from .update_token_expiration import UpdateTokenExpirationTokenResource
 from .user_email_completion_notification import UserEmailCompletionNotificationResource
+from .render_annotations import render_annotations
 from . import ctk_cli_adjustment  # noqa - for side effects
 
 from girder.models.model_base import ModelImporter

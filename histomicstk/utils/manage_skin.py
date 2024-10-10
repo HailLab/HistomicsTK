@@ -3,6 +3,7 @@ import json
 import os
 import requests
 import tarfile
+from urlparse import urlparse, urlunparse
 
 from dateutil import parser
 import pytz
@@ -44,7 +45,7 @@ PROCESS_NATIENS_OP = 'process_natiens'
 INGEST_FOLDER_OP = 'ingest_folder'
 GET_FROM_REDCAP_OP = 'get_from_redcap'
 SEND_TO_REDCAP_OP = 'send_to_redcap'
-RENDER_ANNOTATIONS_OP = 'render_annotations'
+RENDER_ALL_ANNOTATIONS_OP = 'render_all_annotations'
 POLL_ANNOTATIONS_NATIENS_OP = 'poll_annotations_natiens'
 SET_TOKEN_EXPIRATION_OP = 'set_token_expiration'
 TIME_ON_TASK_OP = 'time_on_task'
@@ -216,7 +217,7 @@ if __name__ == '__main__':
                            help='Collection ID used for creating folders')
     argparser.add_argument('-o', '--operation', type=str, default=[], nargs='+',
                            choices=[PROCESS_OP, EXPORT_OP, EXPORT_NATIENS_OP, STATUS_OP, PROCESS_BASELINE_OP, PROCESS_NATIENS_OP,
-                                    INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, RENDER_ANNOTATIONS_OP,
+                                    INGEST_FOLDER_OP, GET_FROM_REDCAP_OP, SEND_TO_REDCAP_OP, RENDER_ALL_ANNOTATIONS_OP,
                                     POLL_ANNOTATIONS_NATIENS_OP, SET_TOKEN_EXPIRATION_OP, TIME_ON_TASK_OP],
                            help='What to do with images')
     argparser.add_argument('-s', '--startdate', type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d'), default=None,
@@ -694,6 +695,7 @@ def process_access_helper():
 
 
 def process_natiens_create_annotation_layers_update_links(items):
+    # TODO: Does this need to run if items is empty?
     group_url = GROUP_API_URL + '/' + args.workergroup + '/member?ignore' + ITEM_QUERY_STRING
     group = gc.get(group_url)
     group_by_name = {g['login']: g for g in group}
@@ -740,12 +742,15 @@ def process_natiens_create_annotation_layers_update_links(items):
       ] + [admin_user]
     }
     # Update links to images
+    #import pdb; pdb.set_trace()
     for item in items:
         annotation_instrument_data['data'] = '[{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":"%s","field_name":"%s","value":"%s"}]'
         _, _, _, imaging_device_and_vectra, fidelity = parse_filename(item['name'])
         # Don't push images if can't parse what to push
         if imaging_device_and_vectra:
-            image_link = args.url + SKIN_APP_IMAGE_BASE_URL + str(item['_id'])
+            parsed_skin_app_url = urlparse(args.url)
+            skin_app_url = urlunparse((parsed_skin_app_url.scheme, parsed_skin_app_url.netloc, '', '', '', ''))  # just base url
+            image_link = skin_app_url + '/' + SKIN_APP_IMAGE_BASE_URL + str(item['_id'])
             folder_name = Folder().load(item['folderId'], force=True)
             redcap_repeat_instance = folder_name['name'].split('_')[0]
             link_field = 'link_' + remove_all_except_last(VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]], '_')
@@ -817,6 +822,11 @@ def process_generate_thumbnails_and_permissions(items, group_by_name, annotation
 
 
 def export(items, args):
+    try:
+        gc  # client gets defined in main, but may be called externally
+    except NameError:
+        gc = girder_client.GirderClient(apiUrl=args.url)
+        gc.token = args.token  # Can't programatically get API key, so auth with token
     folder = Folder().load(args.folder, force=True)
     try:
         os.mkdir(os.path.join(args.datadir, args.foldername))
@@ -920,18 +930,30 @@ def export(items, args):
         [os.remove(json_file) for json_file in json_files]
 
 
-def render_annotations():
+def render_all_annotations():
     # json_files = get_all_files(os.path.join(args.datadir, args.foldername, 'json'))
     for record_id in os.listdir(os.path.join(args.datadir, args.foldername)):
         for session_id in os.listdir(os.path.join(args.datadir, args.foldername, record_id)):
-            imgsrc_files = os.path.join(args.datadir, args.foldername, record_id, session_id, 'imgsrc')
-            json_files = os.path.join(args.datadir, args.foldername, record_id, session_id, 'json')
-            mask_files = os.path.join(args.datadir, args.foldername, record_id, session_id, 'masks')
-            annotated_files = os.path.join(args.datadir, args.foldername, record_id, session_id, 'annotated')
-            [make_dir_if_not_exists(f) for f in [imgsrc_files, json_files, mask_files, annotated_files]]
-            cmd = 'JSON_FOLDER={json}/ BASELINE_FOLDER={imgsrc}/ ANNOTATED_IMAGES_FOLDER={annotated}/ MASKS_FOLDER={masks}/ /opt/histomicstk/HistomicsTK/histomicstk/utils/run_step1_main_read_json_mask.sh /home/ubuntu/matlab/r2021b/mcr'.format(imgsrc=imgsrc_files, json=json_files, masks=mask_files, annotated=annotated_files)
-            print(cmd)
-            os.system(cmd)
+            base_path = os.path.join(args.datadir, args.foldername, record_id, session_id)
+            imgsrc_files = os.path.join(base_path, 'imgsrc')
+            json_files = os.path.join(base_path, 'json')
+            # mask_files = os.path.join(base_path, 'masks')
+            annotated_files = os.path.join(base_path, 'annotated')
+            [make_dir_if_not_exists(f) for f in [imgsrc_files, json_files, annotated_files]]
+            # [make_dir_if_not_exists(f) for f in [imgsrc_files, json_files, mask_files, annotated_files]]
+            # Former method involved invoking a MATLAB Runtime script
+            # cmd = 'JSON_FOLDER={json}/ BASELINE_FOLDER={imgsrc}/ ANNOTATED_IMAGES_FOLDER={annotated}/ MASKS_FOLDER={masks}/ /opt/histomicstk/HistomicsTK/histomicstk/utils/run_step1_main_read_json_mask.sh /home/ubuntu/matlab/r2021b/v911/mcr'.format(imgsrc=imgsrc_files, json=json_files, masks=mask_files, annotated=annotated_files)
+            # print(cmd)
+            # os.system(cmd)
+            from render_annotations import render_annotations
+            # Iterate through all imgsrcs and render
+            for root, _, files in os.walk(json_files):
+                for file_name in files:
+                    imgsrc_file_name = file_name.replace('.json', '')
+                    render_annotations(
+                        os.path.join(imgsrc_files, imgsrc_file_name),
+                        os.path.join(root, file_name),
+                        os.path.join(annotated_files, imgsrc_file_name))
 
 
 def send_to_redcap():
@@ -1053,11 +1075,55 @@ class DateTimeEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
+def get_redcap_annotation_users(redcaptoken):
+    data = {
+        'token': redcaptoken,
+        'content': 'metadata',
+        'format': 'json',
+        'returnFormat': 'json',
+        'fields': 'annotator',
+        'forms[0]': 'annotation'
+    }
+    # req_users = requests.post('https://redcap.vanderbilt.edu/api/', data=data)
+    from histomicstk import API_URL_REDCAP
+    req_users = requests.post(API_URL_REDCAP, data=data)
+    for u in json.loads(req_users.text):
+        # Grab the list from the annotator field
+        if u['field_name'] == 'annotator':
+            return {a.split(', ')[1]: a.split(', ')[0] for a in u['select_choices_or_calculations'].split(' | ')}
+
+
+def _get_instance_number(redcaptoken, record, user):
+    users = get_redcap_annotation_users(redcaptoken)
+    if user not in users:
+        return None
+    user_id = users[user]
+    data = {
+        'token': redcaptoken,
+        'content': 'record',
+        'action': 'export',
+        'format': 'json',
+        'type': 'flat',
+        'csvDelimiter': '',
+        'records[0]': record,
+        'fields[0]': 'record_id',
+        'forms[0]': 'annotation',
+        'returnFormat': 'json',
+        'filterLogic': '[annotator] = ' + user_id,
+    }
+    # req_anno = requests.post('https://redcap.vanderbilt.edu/api/', data=data)
+    from histomicstk import API_URL_REDCAP
+    req_anno = requests.post(API_URL_REDCAP, data=data)
+    for a in json.loads(req_anno.text):
+        return a
+
+
 if __name__ == "__main__":
     gc = girder_client.GirderClient(apiUrl=args.url)
     gc.authenticate(username='admin', apiKey=args.girderapikey, interactive=True)
     user = User().load(gc.get('user/me')['_id'], force=True)
-
+    #import pdb; pdb.set_trace()
+    _get_instance_number('F94BC6D7EEE8EE3316A827A9128AE038', 'NAT-01-JD', 'Test 1')
     items = get_items_from_folder(args.folder)
     # Get status of annotation layers from SkinApp
     if STATUS_OP in args.operation:
@@ -1096,8 +1162,8 @@ if __name__ == "__main__":
     if any(['export' in op for op in args.operation]):
         export(items, args)
     # Output annotated PNG files using MATLAB from json annotation and input file
-    if RENDER_ANNOTATIONS_OP in args.operation:
-        render_annotations()
+    if RENDER_ALL_ANNOTATIONS_OP in args.operation:
+        render_all_annotations()
     # Send the outputted annotated PNGs to REDCap
     if SEND_TO_REDCAP_OP in args.operation:
         send_to_redcap()

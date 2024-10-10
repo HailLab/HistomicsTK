@@ -31,7 +31,7 @@
 ## Set the desired value for destinationFolder and
 ## uncomment the line.
 
-destinationFolder=/home/ubuntu/matlab/r2021b/bin/
+destinationFolder=/home/ubuntu/matlab/r2021b
 
 ##
 ## SPECIFY FILE INSTALLATION KEY
@@ -73,6 +73,9 @@ agreeToLicense=yes
 
 outputFile=/home/ubuntu/mathworks.log
 
+userName=
+userPassword=
+
 ##
 ## Enable Login Named User licensing
 ##
@@ -108,7 +111,7 @@ improveMATLAB=no
 ## Set the desired value for licensePath and
 ## uncomment the line.
 
-# licensePath=
+# licensePath=/opt/histomicstk/HistomicsTK/license_ip-172-31-67-207_40682044_R2021b.lic
 
 ########## End: Options for Network License Types #########
 
@@ -223,10 +226,10 @@ product.Image_Processing_Toolbox
 #product.Instrument_Control_Toolbox
 #product.LTE_Toolbox
 #product.Lidar_Toolbox
-#product.MATLAB
+product.MATLAB
 #product.MATLAB_Coder
-#product.MATLAB_Compiler
-#product.MATLAB_Compiler_SDK
+product.MATLAB_Compiler
+product.MATLAB_Compiler_SDK
 #product.MATLAB_Parallel_Server
 #product.MATLAB_Production_Server
 #product.MATLAB_Report_Generator
