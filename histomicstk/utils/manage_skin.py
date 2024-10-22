@@ -30,11 +30,12 @@ ACCESS_QUERY_STRING = '&public=false&recurse=true&progress=false'
 ANNOTATION = 'annotation/'
 API_URL_REDCAP = 'https://redcap.vanderbilt.edu/api/'
 LATEST_ANNOTATION_QUERY_STRING = 'annotation?limit=1&sort=created&sortdir=-1'
-SKIN_APP_IMAGE_BASE_URL = 'histomicstk#?image='
+SKIN_APP_IMAGE_BASE_URL = 'histomicstk?image='
 LAST_REDCAP_PULL_KEY = 'histomicstk.last_redcap_pull'
 NATIENS_ID_KEY_ORDER = ['natiens_id', 'natiens_id2', 'pilot_id2', 'pilot_id']
 FIDELITY_LO = 'lo'
 FIDELITY_HI = 'hi'
+ANNOTATION_INSTRUMENT_DATA = '{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":%s,"field_name":"%s","value":"%s"}'
 
 PROCESS_OP = 'process'
 EXPORT_OP = 'export'
@@ -172,6 +173,7 @@ def parse_filename(filename):
         pilot_id, site_id, imaging_session, imaging_device_and_vectra = name_constituents
     elif len(name_constituents) == 5:
         pilot_id, site_id, imaging_session, fidelty, imaging_device_and_vectra = name_constituents
+        imaging_session = imaging_session + '_' + fidelty  # @TODO: Not postiive if session name should include fideltiy
 
     try:
         imaging_device_and_vectra = os.path.splitext(imaging_device_and_vectra)[0]
@@ -257,7 +259,7 @@ if __name__ == '__main__':
         'type': 'eav',
         'overwriteBehavior': 'overwrite',
         'forceAutoNumber': 'false',
-        'data': '{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":%s,"field_name":"%s","value":"%s"}',
+        'data': '{}',
         'returnContent': 'count',
         'returnFormat': 'json'
     }
@@ -457,13 +459,14 @@ def get_from_redcap(user, update=True):
             natiens_id = get_natiens_id(r)
             if natiens_id:  # only extract patients which have a pilot ID
                 record_id = r['record_id']
-                session_id = r['redcap_repeat_instance'] 
+                session_id = r['imaging_session'] 
+                repeat_instance = r['redcap_repeat_instance']
                 patient_folder_name = record_id + '_' + natiens_id
                 try:
                     photography_date = '_' + str(datetime.datetime.strptime(r['date_photography'], '%Y-%m-%d').strftime('%y%m%d'))
                 except ValueError:
                     photography_date = ''
-                session_folder_name = str(r['redcap_repeat_instance']) + photography_date
+                session_folder_name = str(r['imaging_session']) + photography_date
                 make_dir_if_not_exists(os.path.join(args.datadir))
                 make_dir_if_not_exists(os.path.join(args.datadir, args.foldername))
                 make_dir_if_not_exists(os.path.join(args.datadir, args.foldername, natiens_id))
@@ -478,12 +481,12 @@ def get_from_redcap(user, update=True):
                     else:
                         field_range = range(0, 24)
                     phi_checks = map(lambda x: 'phi_check' + str(x) + '___0', field_range)
-                    
+
                     try:
                         fields_keep = [file_fields_flash_all[f] for i, f in enumerate(field_range) if not int(r[phi_checks[i]])] + [file_fields_noflash_all[f] for i, f in enumerate(field_range) if not int(r[phi_checks[i]])]
                     except ValueError, AttributeError:
                         pass
-                download_files = [merge_dicts(fields_file_base, {'record': record_id, 'repeat_instance': session_id, 'field': field_file}) for field_file in fields_keep]
+                download_files = [merge_dicts(fields_file_base, {'record': record_id, 'repeat_instance': repeat_instance, 'field': field_file}) for field_file in fields_keep]
                 for field in download_files:
                     # Currently only pulling images which were captured on randomization day and day of reep
                     if int(r['day_0___0']) or int(r['day_reepithelization___0']) and (not exists or args.ignoreexisting):
@@ -494,6 +497,7 @@ def get_from_redcap(user, update=True):
                         filename_original = re.findall(filename_regex, req.headers['Content-Type'])
                         if filename_original:
                             suffix = os.path.splitext(r[field['field']])[1]
+                            import pdb; pdb.set_trace()
                             file_base_name = '_'.join([project_id, r['imaging_session'].rjust(2, '0'), r['imaging_device___1'] + FILE_FIELDS_VECTRA[field['field']]])
                             filename_output = file_base_name + suffix 
                             print(os.path.join(args.datadir, args.foldername, natiens_id, str(session_folder_name), 'imgsrc', filename_output))
@@ -742,31 +746,68 @@ def process_natiens_create_annotation_layers_update_links(items):
       ] + [admin_user]
     }
     # Update links to images
-    #import pdb; pdb.set_trace()
     for item in items:
-        annotation_instrument_data['data'] = '[{"record":"%s","redcap_repeat_instrument":"annotation","redcap_repeat_instance":"%s","field_name":"%s","value":"%s"}]'
         _, _, _, imaging_device_and_vectra, fidelity = parse_filename(item['name'])
         # Don't push images if can't parse what to push
         if imaging_device_and_vectra:
             parsed_skin_app_url = urlparse(args.url)
             skin_app_url = urlunparse((parsed_skin_app_url.scheme, parsed_skin_app_url.netloc, '', '', '', ''))  # just base url
-            image_link = skin_app_url + '/' + SKIN_APP_IMAGE_BASE_URL + str(item['_id'])
+            image_link = str(skin_app_url) + '/' + SKIN_APP_IMAGE_BASE_URL + str(item['_id'])
             folder_name = Folder().load(item['folderId'], force=True)
-            redcap_repeat_instance = folder_name['name'].split('_')[0]
-            link_field = 'link_' + remove_all_except_last(VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]], '_')
-            try:
+            session_id, _, _ = folder_name['name'].rpartition("_")
+
+            # Fetch the specific REDCap annotation instrument, filtered by session
+            # import pdb; pdb.set_trace()
+            matching_annotation = _get_instance_number(args.redcaptoken, item['meta']['record_id'], None, session_id)
+
+            if matching_annotation:  # Check if a matching annotation was found
                 link_field = 'link_' + remove_all_except_last(VECTRA_FILE_FIELDS[imaging_device_and_vectra[1:]], '_')
-            except KeyError:
-                print("Failed to parse filename.")
-                print(pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity)
-            annotation_instrument_data['data'] = annotation_instrument_data['data'] % (
-                item['meta']['record_id'],
-                redcap_repeat_instance,
-                link_field,
-                image_link,
-            )
-            requests.post(API_URL_REDCAP, data=annotation_instrument_data)
+                
+                annotation_instrument_data['data'] = ANNOTATION_INSTRUMENT_DATA % (
+                    item['meta']['record_id'],
+                    matching_annotation[0]["redcap_repeat_instance"], # get repeat instance from result, use first list element.
+                    link_field,
+                    image_link,
+                )
+
+                requests.post(API_URL_REDCAP, data=annotation_instrument_data)
+            else:
+                print("No matching REDCap annotation instrument found for record" + item['meta']['record_id'] + "and session " + session_id)
+
+        else:
+            print("Failed to parse filename.")
+
     return group_by_name, annotations_dict, access_dict
+
+
+def _get_instance_number(redcaptoken, record, user, session_id=None):
+    data = {
+        'token': redcaptoken,
+        'content': 'record',
+        'action': 'export',
+        'format': 'json',
+        'type': 'flat',
+        'csvDelimiter': '',
+        'records[0]': record,
+        'fields[0]': 'record_id',
+        'forms[0]': 'annotation',
+        'returnFormat': 'json',
+    }
+
+    if user:
+      users = get_redcap_annotation_users(redcaptoken)
+      if user not in users:
+          return None
+      user_id = users[user]
+      data['filterLogic'] = '[annotator] = ' + user_id
+
+    if session_id:
+      data['filterLogic'] = (data.get('filterLogic', '') + " and " if data.get('filterLogic', '') else '') + '[session_annotated] = ' + str(session_id)
+
+    from histomicstk import API_URL_REDCAP
+    req_anno = requests.post(API_URL_REDCAP, data=data)
+
+    return json.loads(req_anno.text)
 
 
 def process_baseline_helper(access_dict):
@@ -1091,31 +1132,6 @@ def get_redcap_annotation_users(redcaptoken):
         # Grab the list from the annotator field
         if u['field_name'] == 'annotator':
             return {a.split(', ')[1]: a.split(', ')[0] for a in u['select_choices_or_calculations'].split(' | ')}
-
-
-def _get_instance_number(redcaptoken, record, user):
-    users = get_redcap_annotation_users(redcaptoken)
-    if user not in users:
-        return None
-    user_id = users[user]
-    data = {
-        'token': redcaptoken,
-        'content': 'record',
-        'action': 'export',
-        'format': 'json',
-        'type': 'flat',
-        'csvDelimiter': '',
-        'records[0]': record,
-        'fields[0]': 'record_id',
-        'forms[0]': 'annotation',
-        'returnFormat': 'json',
-        'filterLogic': '[annotator] = ' + user_id,
-    }
-    # req_anno = requests.post('https://redcap.vanderbilt.edu/api/', data=data)
-    from histomicstk import API_URL_REDCAP
-    req_anno = requests.post(API_URL_REDCAP, data=data)
-    for a in json.loads(req_anno.text):
-        return a
 
 
 if __name__ == "__main__":
