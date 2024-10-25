@@ -35,19 +35,33 @@ class SendToRedcapItemResource(ItemResource):
         apiRoot.item.route('POST', (':id', ':redcaptoken', 'send_to_redcap'), self.send_to_redcap)
 
     def _parse_filename(self, filename):
-        FIDELITY_LO = 'lo'
         name_constituents = filename.split('_')
-        record_id = None
+        pilot_id = None
         site_id = None
-        fidelity = FIDELITY_LO
-        if len(name_constituents) == 3:
-            record_id, imaging_session, imaging_device_and_vectra = name_constituents
-        elif len(name_constituents) == 4:
-            record_id, site_id, imaging_session, imaging_device_and_vectra = name_constituents
-        elif len(name_constituents) == 5:
-            record_id, site_id, imaging_session, fidelty, imaging_device_and_vectra = name_constituents
-        imaging_device_and_vectra = os.path.splitext(imaging_device_and_vectra)[0]
-        return record_id, site_id, imaging_session, imaging_device_and_vectra, fidelity
+        imaging_session = None
+        imaging_device_and_vectra = None
+        fidelity = 'lo'
+
+        try:
+            if len(name_constituents) == 3:
+                pilot_id, imaging_session, imaging_device_and_vectra = name_constituents
+            elif len(name_constituents) == 4:
+                pilot_id, site_id, imaging_session, imaging_device_and_vectra = name_constituents
+            elif len(name_constituents) == 5:
+                pilot_id, site_id, imaging_session, fidelity, imaging_device_and_vectra = name_constituents
+                imaging_session = imaging_session + '_' + fidelity  # @TODO: Not positive if session name should include fidelity
+            else:
+                return None, None, None, None, None  # Return None for all if parsing fails
+        except Exception as e:
+            print("Error parsing filename: " + filename + ". Error: " + str(e))
+
+        try:
+            imaging_device_and_vectra = os.path.splitext(imaging_device_and_vectra)[0]
+        except TypeError as e:
+            print("Error parsing imaging_device_and_vectra: " + str(e))
+            imaging_device_and_vectra = None
+
+        return pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity
 
     def _render_annotations(self, item, folder):
         # URL = 'http://ec2-54-152-138-170.compute-1.amazonaws.com/api/v1/'
@@ -153,11 +167,7 @@ class SendToRedcapItemResource(ItemResource):
             if u['field_name'] == 'annotator':
                 return {a.split(', ')[1]: a.split(', ')[0] for a in u['select_choices_or_calculations'].split(' | ')}
 
-    def _get_instance_number(self, redcaptoken, record, user):
-        users = self.get_redcap_annotation_users(redcaptoken)
-        if user not in users:
-            return None
-        user_id = users[user]
+    def _get_instance_number(self, redcaptoken, record, user, session_id=None):
         data = {
             'token': redcaptoken,
             'content': 'record',
@@ -167,15 +177,26 @@ class SendToRedcapItemResource(ItemResource):
             'csvDelimiter': '',
             'records[0]': record,
             'fields[0]': 'record_id',
+            'fields[1]': 'imaging_session',
             'forms[0]': 'annotation',
             'returnFormat': 'json',
-            'filterLogic': '[annotator] = ' + user_id,
         }
-        # req_anno = requests.post('https://redcap.vanderbilt.edu/api/', data=data)
+
+        if user:
+            users = self.get_redcap_annotation_users(redcaptoken)
+            if user not in users:
+                return None
+            user_id = users[user]
+            data['filterLogic'] = '[annotator] = ' + user_id
+
+        if session_id:
+            filter_logic = data.get('filterLogic', '')
+            data['filterLogic'] = (filter_logic + " and " if filter_logic else '') + '[imaging_session] = "' + str(session_id) + '"'
+
         from histomicstk import API_URL_REDCAP
         req_anno = requests.post(API_URL_REDCAP, data=data)
-        for a in json.loads(req_anno.text):
-            return a
+
+        return json.loads(req_anno.text)
 
     def _make_dir_if_not_exists(self, path):
         try:
@@ -227,7 +248,8 @@ class SendToRedcapItemResource(ItemResource):
         # -return self._render_annotations(item, folder)
         (record_id, annotated_path_jpg, json_path) = self._render_annotations(item, folder)
         # return vars(args)
-        instance_number = self._get_instance_number(redcaptoken, record_name, user_name)
+        session_id = folder['lowerName'].rsplit('_', 1)[0]
+        instance_number = self._get_instance_number(redcaptoken, record_name, user_name, session_id)
 
         field_annotation = manage_skin.VECTRA_FILE_FIELDS[vectra] + '1'  # Annotation fields end with a 1
         fields_records_upload = {
