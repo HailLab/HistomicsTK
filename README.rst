@@ -264,6 +264,7 @@ On destination server:
         sudo apt-get update -y; \
         sudo apt install -y cron libgl1-mesa-dev; \
         sudo systemctl enable cron; \
+        sudo service cron start; \
         pip install nameparser; \
         mkdir -p /opt/histomicstk/girder/clients/web/static/timeme.js; \
         cd /opt/histomicstk/girder/clients/web/static/timeme.js; \
