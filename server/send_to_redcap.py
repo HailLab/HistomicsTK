@@ -182,16 +182,19 @@ class SendToRedcapItemResource(ItemResource):
             'returnFormat': 'json',
         }
 
+        filter_logic = []
         if user:
             users = self.get_redcap_annotation_users(redcaptoken)
             if user not in users:
                 return None
             user_id = users[user]
-            data['filterLogic'] = '[annotator] = ' + user_id
+            filter_logic.append("[annotator] = '" + user_id + "'")
 
         if session_id:
-            filter_logic = data.get('filterLogic', '')
-            data['filterLogic'] = (filter_logic + " and " if filter_logic else '') + '[imaging_session] = "' + str(session_id) + '"'
+            filter_logic.append("[imaging_session] = '" + session_id + "'")
+
+        if filter_logic:
+            data['filterLogic'] = " and ".join(filter_logic)
 
         from histomicstk import API_URL_REDCAP
         req_anno = requests.post(API_URL_REDCAP, data=data)
@@ -250,18 +253,26 @@ class SendToRedcapItemResource(ItemResource):
         # return vars(args)
         session_id = folder['lowerName'].rsplit('_', 1)[0]
         instance_number = self._get_instance_number(redcaptoken, record_name, user_name, session_id)
+        try:
+            single_annotation = [i for i in instance_number if i['redcap_repeat_instrument'] == 'annotation'][0]
+        except IndexError:
+            single_annotation = None
+        try:
+            repeat_instance = single_annotation['redcap_repeat_instance']
+        except KeyError:
+            return "Failed to parse annotation repeat instance."
 
         field_annotation = manage_skin.VECTRA_FILE_FIELDS[vectra] + '1'  # Annotation fields end with a 1
         fields_records_upload = {
             'token': redcaptoken,
+            'record': record_name,
             'content': 'file',
             'action': 'import',
             'returnFormat': 'json',
             'field': field_annotation,
-            'repeat_instance': instance_number['redcap_repeat_instance'],
+            'repeat_instance': repeat_instance,
         }
         # if 'meta' in item and 'record_id' in item['meta']:
-        fields_records_upload['record'] = record_name
         from histomicstk import API_URL_REDCAP
         # upload annotation jpg
         with open(annotated_path_jpg, 'rb') as f:
