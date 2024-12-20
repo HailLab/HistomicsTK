@@ -872,7 +872,14 @@ def export(items, args):
         gc  # client gets defined in main, but may be called externally
     except NameError:
         gc = girder_client.GirderClient(apiUrl=args.url)
-        gc.token = args.token  # Can't programatically get API key, so auth with token
+        # Proper authentication using either token or API key
+        if args.girderapikey:
+            gc.authenticate(apiKey=args.girderapikey)
+        elif args.token:
+            gc.authenticate(token=args.token)
+        else:
+            raise ValueError("Neither API key nor token provided for authentication")
+
     folder = Folder().load(args.folder, force=True)
     try:
         os.mkdir(os.path.join(args.datadir, args.foldername))
@@ -885,19 +892,26 @@ def export(items, args):
     # restrict by start and end dates
     startdate = localtz.localize(args.startdate) if args.startdate else None
     enddate = localtz.localize(args.enddate) + datetime.timedelta(1) if args.enddate else None
+    
     if 'message' in items and 'AttributeError' in items['message']:
         raise ValueError('Likely an incorrect folderId was specified')
+
     for item in items:
         try:
             updated = parser.parse(item['updated'])
         except TypeError:
-            # import pdb; pdb.set_trace()
             updated = item['updated']
+            
         start_range = startdate and startdate <= updated
         end_range = enddate and enddate >= updated
+        
         if start_range and end_range or start_range and not enddate or end_range and not startdate or not startdate and not enddate:
             annotations_access_url = MULTIPLE_ANNOTATIONS + str(item['_id'])
-            annotations = gc.get(annotations_access_url)
+            try:
+                annotations = gc.get(annotations_access_url)
+            except girder_client.HttpError as e:
+                print(f"Error accessing annotations for item {item['_id']}: {str(e)}")
+                continue
             annotations_within_range = []
             for annotation in annotations:
                 if annotation['updated']:
