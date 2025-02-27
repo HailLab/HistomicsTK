@@ -234,7 +234,7 @@ if __name__ == '__main__':
                            help='date before which no annotations will be returned (inclusive)')
     argparser.add_argument('-e', '--enddate', type=lambda s: datetime.datetime.strptime(s, '%Y-%m-%d'), default=None,
                            help='date after which no annotations will be returned (inclusive)')
-    argparser.add_argument('-d', '--datadir', type=str, default='/opt/histomicstk_data',
+    argparser.add_argument('-d', '--datadir', type=str, default='/opt/histomicstk/assetstore/temp',
                            help='folder in which images will be temporarily stored before ingestion')
     argparser.add_argument('-z', '--zip', action='store_true', help='whether to tarball gunzip the json files')
     argparser.add_argument('-p', '--phi', action='store_true', help='Ignore PHI settings and export all images')
@@ -910,7 +910,7 @@ def export(items, args):
             try:
                 annotations = gc.get(annotations_access_url)
             except girder_client.HttpError as e:
-                print(f"Error accessing annotations for item {item['_id']}: {str(e)}")
+                print("Error accessing annotations for item" + str(item['_id']) + ": " + str(e))
                 continue
             annotations_within_range = []
             for annotation in annotations:
