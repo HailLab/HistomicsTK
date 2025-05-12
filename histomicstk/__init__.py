@@ -17,7 +17,7 @@ except ImportError:
 
 BASE_URL = 'https://skin.app.vumc.org/'
 # BASE_URL = 'http://ec2-54-152-138-170.compute-1.amazonaws.com/'
-API_URL_REDCAP = 'https://redcap.vanderbilt.edu/api/'
+API_URL_REDCAP = 'https://redcap.vumc.org/api/'
 
 # list out things that are available for public use
 __all__ = (

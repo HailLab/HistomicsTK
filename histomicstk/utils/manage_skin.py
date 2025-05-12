@@ -28,7 +28,7 @@ LARGEIMAGE_QUERY_STRING = '&notify=false'
 ACCESS_API_URL = 'folder'
 ACCESS_QUERY_STRING = '&public=false&recurse=true&progress=false'
 ANNOTATION = 'annotation/'
-API_URL_REDCAP = 'https://redcap.vanderbilt.edu/api/'
+API_URL_REDCAP = 'https://redcap.vumc.org/api/'
 LATEST_ANNOTATION_QUERY_STRING = 'annotation?limit=1&sort=created&sortdir=-1'
 SKIN_APP_IMAGE_BASE_URL = 'histomicstk#?image='
 LAST_REDCAP_PULL_KEY = 'histomicstk.last_redcap_pull'
@@ -242,6 +242,7 @@ if __name__ == '__main__':
     argparser.add_argument('-x', '--annotator', type=str, nargs='+', default=[], help='Users to export json for.')
     argparser.add_argument('-k', '--tokenid', type=str, default='', help='ID of Girder Token.')
     argparser.add_argument('-g', '--girderapikey', type=str, default='', help='Girder API Key')
+    argparser.add_argument('-v', '--verbose', action='store_true', help='to print logging info')
     args = argparser.parse_args()
 
     fields_records_annotations = {
@@ -868,112 +869,238 @@ def process_generate_thumbnails_and_permissions(items, group_by_name, annotation
 
 
 def export(items, args):
+    if getattr(args, 'verbose', False):
+        print("Starting export process with {} items".format(len(items)))
+
     try:
         gc  # client gets defined in main, but may be called externally
     except NameError:
+        if getattr(args, 'verbose', False):
+            print("Creating new girder client")
         gc = girder_client.GirderClient(apiUrl=args.url)
         # Proper authentication using either token or API key
         if args.girderapikey:
+            if getattr(args, 'verbose', False):
+                print("Authenticating with API key")
             gc.authenticate(apiKey=args.girderapikey)
         elif args.token:
+            if getattr(args, 'verbose', False):
+                print("Authenticating with token")
             gc.authenticate(token=args.token)
         else:
             raise ValueError("Neither API key nor token provided for authentication")
 
     folder = Folder().load(args.folder, force=True)
+    if getattr(args, 'verbose', False):
+        print("Loaded folder: {} (ID: {})".format(folder.get('name', 'unknown'), args.folder))
+
     try:
-        os.mkdir(os.path.join(args.datadir, args.foldername))
+        json_dir = os.path.join(args.datadir, args.foldername, 'json')
+        if getattr(args, 'verbose', False):
+            print("Creating JSON directory: {}".format(json_dir))
+        os.mkdir(json_dir)
+        if getattr(args, 'verbose', False):
+            print("JSON directory created successfully")
     except OSError:
+        if getattr(args, 'verbose', False):
+            print("JSON directory already exists or could not be created")
         pass  # if the directory exists, just add to it
     except NameError:
-        pass  # args not passed in, this should be fine  # mGVHD
+        if getattr(args, 'verbose', False):
+            print("NameError when creating directory (args not passed in)")
+        pass  # args not passed in, this should be fine
 
     localtz = pytz.timezone("America/Chicago")
     # restrict by start and end dates
     startdate = localtz.localize(args.startdate) if args.startdate else None
     enddate = localtz.localize(args.enddate) + datetime.timedelta(1) if args.enddate else None
-    
+
+    if getattr(args, 'verbose', False):
+        print("Date filtering: startdate={}, enddate={}".format(startdate, enddate))
+
     if 'message' in items and 'AttributeError' in items['message']:
+        if getattr(args, 'verbose', False):
+            print("ERROR: Items contain error message: {}".format(items['message']))
         raise ValueError('Likely an incorrect folderId was specified')
 
+    items_processed = 0
+    items_with_annotations = 0
+    json_files_written = 0
+
     for item in items:
+        if getattr(args, 'verbose', False):
+            print("Processing item {} - {}".format(item.get('_id', 'unknown'), item.get('name', 'unnamed')))
+                
+        # Get updated date for display purposes only
         try:
             updated = parser.parse(item['updated'])
         except TypeError:
             updated = item['updated']
             
-        start_range = startdate and startdate <= updated
-        end_range = enddate and enddate >= updated
+        if getattr(args, 'verbose', False):
+            print("  Item updated: {}".format(updated))
         
-        if start_range and end_range or start_range and not enddate or end_range and not startdate or not startdate and not enddate:
-            annotations_access_url = MULTIPLE_ANNOTATIONS + str(item['_id'])
-            try:
-                annotations = gc.get(annotations_access_url)
-            except girder_client.HttpError as e:
-                print("Error accessing annotations for item" + str(item['_id']) + ": " + str(e))
-                continue
-            annotations_within_range = []
-            for annotation in annotations:
-                if annotation['updated']:
-                    try:
-                        updated_anno = parser.parse(annotation['updated'])
-                    except TypeError:
-                        updated_anno = annotation['updated']
-                else:
-                    try:
-                        updated_anno = parser.parse(annotation['created'])
-                    except TypeError:
-                        updated_anno = annotation['created']
-                # restrict annotations by date and by user if necessary, not required
-                start_range_anno = startdate and startdate <= updated_anno
-                end_range_anno = enddate and enddate >= updated_anno
-                if start_range_anno and end_range_anno or start_range_anno and not enddate or end_range_anno and not startdate or not startdate and not enddate and (not args.annotator or annotation['annotation']['name'] in args.annotator):
-                    annotations_within_range.append(annotation)
+        # Process all images regardless of their date
+        items_processed += 1
+        annotations_access_url = MULTIPLE_ANNOTATIONS + str(item['_id'])
+            
+        if getattr(args, 'verbose', False):
+            print("  Fetching annotations from: {}".format(annotations_access_url))
+                
+        try:
+            annotations = gc.get(annotations_access_url)
+                
+            if getattr(args, 'verbose', False):
+                print("  Retrieved {} total annotations".format(len(annotations)))
+                    
+        except girder_client.HttpError as e:
+            if getattr(args, 'verbose', False):
+                print("  ERROR accessing annotations: {}".format(str(e)))
+            continue
+                
+        # Filter annotations by date
+        annotations_within_range = []
+        for annotation in annotations:
+            if getattr(args, 'verbose', False) and len(annotations) < 10:
+                print("  Checking annotation {}".format(annotation.get('_id', 'unknown')))
+                    
+            if annotation['updated']:
+                try:
+                    updated_anno = parser.parse(annotation['updated'])
+                except TypeError:
+                    updated_anno = annotation['updated']
+            else:
+                try:
+                    updated_anno = parser.parse(annotation['created'])
+                except TypeError:
+                    updated_anno = annotation['created']
+                    
+            # restrict annotations by date and by user if necessary, not required
+            start_range_anno = startdate and startdate <= updated_anno
+            end_range_anno = enddate and enddate >= updated_anno
+            user_match = not args.annotator or annotation['annotation']['name'] in args.annotator
+                
+            anno_date_match = start_range_anno and end_range_anno or start_range_anno and not enddate or end_range_anno and not startdate or not startdate and not enddate
+                
+            if getattr(args, 'verbose', False) and len(annotations) < 10:
+                print("    Annotation date: {}, match: {}".format(updated_anno, anno_date_match))
+                    
+            if anno_date_match and user_match:
+                annotations_within_range.append(annotation)
+
+            if getattr(args, 'verbose', False):
+                print("  Found {} annotations within date range and user criteria".format(len(annotations_within_range)))
+
             meta_annotations_only = dict()
             if annotations_within_range and item and 'meta' in item:
+                items_with_annotations += 1
+
                 if 'record_id' in item['meta']:
                     record_id = item['meta']['record_id']
                 else:
                     record_id = item['name']
+
                 for m in item['meta']:
                     for annotator in annotations_within_range:
                         if annotator['annotation']['name'] in m:
                              meta_annotations_only[m] = item['meta'][m]
+
                 item['meta'] = meta_annotations_only
+
                 if 'record_id' in item['meta']:
                     record_id = item['meta']['record_id']
                 else:
                     record_id = item['name']
+
+                if getattr(args, 'verbose', False):
+                    print("  Using record_id: {}".format(record_id))
+
                 if EXPORT_NATIENS_OP in args.operation:
+                    if getattr(args, 'verbose', False):
+                        print("  Using EXPORT_NATIENS_OP path")
+
                     pilot_id, site_id, imaging_session, imaging_device_and_vectra, fidelity = parse_filename(item['name'])
+
                     # Father session_id and record_id from folder structure since it's not contained in the file name
                     folder_child = Folder().load(item['folderId'], force=True)
                     folder_name = folder_child['name']
                     session_id = folder_name.split('_')[0]
                     parent_folder = Folder().load(folder['parentId'], force=True)
                     parent_folder_name = parent_folder['name']
-                    # record_id = parent_folder['name'].split('_')[0]  this wasn't giving expected behavior on natiens_practice
-                    #record_id = parent_folder['name']
+
+                    if getattr(args, 'verbose', False):
+                        print("  NATIENS parsing: parent_folder={}, folder={}, session={}".format(
+                            parent_folder_name, folder_name, session_id))
 
                     imgsrc_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'imgsrc')
                     json_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'json')
                     mask_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'masks')
                     annotated_files = os.path.join(args.datadir, args.foldername, parent_folder_name, folder_name, 'annotated')
-                    [make_dir_if_not_exists(f) for f in [imgsrc_files, json_files, mask_files, annotated_files]]
-                    # return os.path.join(args.datadir, 'natiens_pilot', parent_folder['name'], folder['name'], 'json', item['name'] + '.json')
-                    # import pdb; pdb.set_trace()
-                    with open(os.path.join(args.datadir, args.foldername, parent_folder['name'], folder['name'], 'json', record_id + '.json'), 'wb') as f:
-                        item['annotations'] = [anno for anno in annotations_within_range]
-                        # output json file
-                        f.write(json.dumps(item, cls=JsonEncoder))
-                else:  # mGVHD
+
+                    if getattr(args, 'verbose', False):
+                        print("  Creating directories: {}, {}, {}, {}".format(
+                            imgsrc_files, json_files, mask_files, annotated_files))
+
+                    dirs_created = [make_dir_if_not_exists(f) for f in [imgsrc_files, json_files, mask_files, annotated_files]]
+
+                    if getattr(args, 'verbose', False):
+                        print("  Directory creation results: {}".format(dirs_created))
+
+                    json_path = os.path.join(args.datadir, args.foldername, parent_folder['name'], folder['name'], 'json', record_id + '.json')
+
+                    if getattr(args, 'verbose', False):
+                        print("  Writing JSON to: {}".format(json_path))
+
                     try:
-                        os.mkdir(os.path.join(args.datadir, args.foldername, 'json'))
+                        with open(json_path, 'wb') as f:
+                            item['annotations'] = [anno for anno in annotations_within_range]
+                            json_data = json.dumps(item, cls=JsonEncoder)
+                            f.write(json_data)
+                            json_files_written += 1
+
+                            if getattr(args, 'verbose', False):
+                                print("  Successfully wrote JSON file ({} bytes)".format(len(json_data)))
+
+                    except Exception as e:
+                        if getattr(args, 'verbose', False):
+                            print("  ERROR writing JSON file: {}".format(str(e)))
+
+                else:  # mGVHD
+                    if getattr(args, 'verbose', False):
+                        print("  Using regular export path")
+
+                    json_dir = os.path.join(args.datadir, args.foldername, 'json')
+
+                    try:
+                        if getattr(args, 'verbose', False):
+                            print("  Ensuring json directory exists: {}".format(json_dir))
+                        os.mkdir(json_dir)
                     except OSError:
                         pass  # if the directory exists, just add to it
-                    with open(os.path.join(args.datadir, args.foldername, 'json', record_id + '.json'), 'wb') as f:
-                        item['annotations'] = [anno for anno in annotations_within_range]
-                        f.write(json.dumps(item, cls=JsonEncoder))
+
+                    json_path = os.path.join(args.datadir, args.foldername, 'json', record_id + '.json')
+
+                    if getattr(args, 'verbose', False):
+                        print("  Writing JSON to: {}".format(json_path))
+
+                    try:
+                        with open(json_path, 'wb') as f:
+                            item['annotations'] = [anno for anno in annotations_within_range]
+                            json_data = json.dumps(item, cls=JsonEncoder)
+                            f.write(json_data)
+                            json_files_written += 1
+
+                            if getattr(args, 'verbose', False):
+                                print("  Successfully wrote JSON file ({} bytes)".format(len(json_data)))
+
+                    except Exception as e:
+                        if getattr(args, 'verbose', False):
+                            print("  ERROR writing JSON file: {}".format(str(e)))
+
+    if getattr(args, 'verbose', False):
+        print("Export summary: processed {}/{} items, found {} with annotations, wrote {} JSON files".format(
+            items_processed, len(items), items_with_annotations, json_files_written))
+
     if startdate and enddate:
         range_str = '-' + str(startdate.date()) + '--' + str(enddate.date())
     elif startdate:
@@ -982,12 +1109,54 @@ def export(items, args):
         range_str = '-after-' + str(enddate.date())
     else:
         range_str = ''
+
     if args.zip:
-        tar_obj = tarfile.open(os.path.join(args.datadir, args.foldername, folder['name'] + '-' + str(item['folderId']) + range_str + '.tar.gz'), 'w:gz')
-        json_files = glob.glob(os.path.join(args.datadir, args.foldername, 'json', '*.json'))
-        [tar_obj.add(json_file) for json_file in json_files]
-        tar_obj.close()
-        [os.remove(json_file) for json_file in json_files]
+        tar_dir = os.path.dirname(os.path.join(args.datadir, args.foldername, folder['name'] + '-' + str(item['folderId']) + range_str + '.tar.gz'))
+        
+        if getattr(args, 'verbose', False):
+            print("Ensuring tar directory exists: {}".format(tar_dir))
+            
+        try:
+            if not os.path.exists(tar_dir):
+                os.makedirs(tar_dir)
+        except OSError as e:
+            if getattr(args, 'verbose', False):
+                print("Error creating tar directory: {}".format(str(e)))
+                
+        tar_path = os.path.join(args.datadir, args.foldername, folder['name'] + '-' + str(item['folderId']) + range_str + '.tar.gz')
+        if getattr(args, 'verbose', False):
+            print("Creating tar archive: {}".format(tar_path))
+
+        try:
+            tar_obj = tarfile.open(tar_path, 'w:gz')
+            json_files = glob.glob(os.path.join(args.datadir, args.foldername, 'json', '*.json'))
+
+            if getattr(args, 'verbose', False):
+                print("Found {} JSON files to add to archive".format(len(json_files)))
+                for jf in json_files:
+                    print("  - {} ({} bytes)".format(jf, os.path.getsize(jf)))
+
+            for json_file in json_files:
+                tar_obj.add(json_file)
+
+            tar_obj.close()
+
+            if getattr(args, 'verbose', False):
+                if os.path.exists(tar_path):
+                    print("Successfully created archive: {} ({} bytes)".format(tar_path, os.path.getsize(tar_path)))
+                else:
+                    print("WARNING: Archive file does not exist after creation")
+
+            # Remove JSON files after archiving
+            if getattr(args, 'verbose', False):
+                print("Removing JSON files after archiving")
+
+            for json_file in json_files:
+                os.remove(json_file)
+
+        except Exception as e:
+            if getattr(args, 'verbose', False):
+                print("ERROR creating tar archive: {}".format(str(e)))
 
 
 def render_all_annotations():
@@ -1144,7 +1313,7 @@ def get_redcap_annotation_users(redcaptoken):
         'fields': 'annotator',
         'forms[0]': 'annotation'
     }
-    # req_users = requests.post('https://redcap.vanderbilt.edu/api/', data=data)
+    # req_users = requests.post('https://redcap.vumc.org/api/', data=data)
     from histomicstk import API_URL_REDCAP
     req_users = requests.post(API_URL_REDCAP, data=data)
     for u in json.loads(req_users.text):
