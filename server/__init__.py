@@ -32,6 +32,8 @@ from .update_token_expiration import UpdateTokenExpirationTokenResource
 from .user_email_completion_notification import UserEmailCompletionNotificationResource
 from .render_annotations import render_annotations
 from . import ctk_cli_adjustment  # noqa - for side effects
+from .security_headers import setup_security_headers
+from .user_access_control import setup_user_access_control
 
 from girder.models.model_base import ModelImporter
 
@@ -301,6 +303,12 @@ class WebrootHistomicsTK(Webroot):
 
 
 def load(info):
+
+    # Setup security headers
+    setup_security_headers()
+
+    # Setup user access control
+    setup_user_access_control()
 
     girderRoot = info['serverRoot']
     histomicsRoot = WebrootHistomicsTK(_template)
