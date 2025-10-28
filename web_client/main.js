@@ -13,6 +13,8 @@ import './views/itemList';
 import './views/itemPage';
 
 import ConfigView from './views/body/ConfigView';
+import UsersView from '@girder/core/views/body/UsersView';
+import UserView from '@girder/core/views/body/UserView';
 
 const pluginName = 'HistomicsTK';
 const configRoute = `plugins/${pluginName}/config`;
@@ -25,25 +27,29 @@ router.route(configRoute, 'HistomicsTKConfig', function () {
     events.trigger('g:navigateTo', ConfigView);
 });
 
-// Restrict access to users page - require login
-router.route('users', 'users', function () {
+// Restrict access to users page - require admin access
+router.route('users', 'users', function (params) {
     const user = getCurrentUser();
-    if (!user) {
-        // Redirect to login if not authenticated
+    if (!user || !user.get('admin')) {
+        // Redirect to home if not authenticated or not an admin
         router.navigate('', {trigger: true});
         return;
     }
-    // Allow access to original users route
-    events.trigger('g:navigateTo', girder.views.UsersView);
+    // Allow access to original users route for admins
+    events.trigger('g:navigateTo', UsersView, params || {});
+    events.trigger('g:highlightItem', 'UsersView');
 });
 
-router.route('users/:id', 'user', function (id) {
+router.route('user/:id', 'user', function (userId, params) {
     const user = getCurrentUser();
-    if (!user) {
-        // Redirect to login if not authenticated
+    if (!user || !user.get('admin')) {
+        // Redirect to home if not authenticated or not an admin
         router.navigate('', {trigger: true});
         return;
     }
-    // Allow access to original user route
-    events.trigger('g:navigateTo', girder.views.UserView, {id: id});
+    // Allow access to original user route for admins
+    UserView.fetchAndInit(userId, {
+        folderCreate: params.dialog === 'foldercreate',
+        dialog: params.dialog
+    });
 });
