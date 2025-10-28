@@ -1,5 +1,6 @@
 from girder import events
 from girder.api import access
+from girder.api.rest import getCurrentUser
 from girder.exceptions import AccessException
 from girder.models.user import User
 
@@ -7,21 +8,25 @@ from girder.models.user import User
 def _checkUserAccess(event):
     """
     Event handler to restrict access to user-related endpoints.
-    Only authenticated users can access user management features.
+    Only admin users can access user management features.
     """
     info = event.info
-    
+
     # Check if this is a user-related endpoint
-    if (hasattr(info, 'route') and 
-        len(info['route']) > 0 and 
+    if (hasattr(info, 'route') and
+        len(info['route']) > 0 and
         info['route'][0] == 'user'):
-        
-        # Get current user
-        currentUser = info.get('user')
-        
+
+        # Get current user using Girder's getCurrentUser function
+        currentUser = getCurrentUser()
+
         # If no user is logged in, deny access
         if not currentUser:
             raise AccessException('You must be logged in to access user information.')
+
+        # Check if user is an admin - allow admins to access user management
+        if not currentUser.get('admin'):
+            raise AccessException('Administrator access required to manage users.')
 
 
 def setup_user_access_control():
