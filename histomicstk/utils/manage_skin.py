@@ -492,7 +492,7 @@ def get_from_redcap(user, update=True):
 
                     try:
                         fields_keep = [file_fields_flash_all[f] for i, f in enumerate(field_range) if not int(r[phi_checks[i]])] + [file_fields_noflash_all[f] for i, f in enumerate(field_range) if not int(r[phi_checks[i]])]
-                    except ValueError, AttributeError:
+                    except (ValueError, AttributeError):
                         pass
                 download_files = [merge_dicts(fields_file_base, {'record': record_id, 'repeat_instance': repeat_instance, 'field': field_file}) for field_file in fields_keep]
                 for field in download_files:
@@ -829,12 +829,15 @@ def process_baseline_helper(access_dict):
 
 
 def process_generate_thumbnails_and_permissions(items, group_by_name, annotations_dict, access_dict):
+    """
+    Fixed version that sets proper ownership permissions for annotations
+    """
     access_url = ACCESS_API_URL + '/' + args.folder + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + ACCESS_QUERY_STRING
     access = gc.put(access_url)
 
     for item in items:
         image_url = ITEM_API_URL + '/' + str(item['_id']) + '/files' + '?ignore' + ITEM_QUERY_STRING
-        image = gc.get(image_url)  # @TODO Could use gc.getItem(item['_id'])
+        image = gc.get(image_url)
         file_id = image[0]['_id']
 
         largeimage_url = ITEM_API_URL + '/' + str(item['_id']) + '/tiles?fileId=' + file_id + LARGEIMAGE_QUERY_STRING
@@ -842,30 +845,118 @@ def process_generate_thumbnails_and_permissions(items, group_by_name, annotation
             gc.post(largeimage_url)
         except girder_client.HttpError:
             pass
+            
         annotations_url = ANNOTATION_API_URL + '?itemId=' + str(item['_id']) + ITEM_QUERY_STRING
         annotations = gc.get(annotations_url)
         annotations_details = {a['_id']: a['annotation'] for a in annotations}
         annotations_access_url = MULTIPLE_ANNOTATIONS + str(item['_id'])
-        gc.post(annotations_access_url, data=json.dumps([a for a in annotations_dict if a not in annotations_details.values()]))
+        
+        # Create annotations as admin (existing logic)
+        new_annotations = [a for a in annotations_dict if a not in annotations_details.values()]
+        if new_annotations:
+            created_annotations = gc.post(annotations_access_url, data=json.dumps(new_annotations))
+            
+        # Get fresh list of annotations including newly created ones
+        updated_annotations = gc.get(annotations_url)
+        
+        # Set ownership-level permissions for each annotation
         annotation_access_update_url = ANNOTATION
-        for aid, annotation in annotations_details.iteritems():
-            try:
-                a = group_by_name[annotation['name']]
-                # if a['firstName'] not in ['Xiaoqi']:
-                #     continue
-                access_dict["users"] = [
-                {
-                    "flags": [],
-                    "id": a['_id'],
-                    "level": 2,
-                    "login": a['login'],
-                    "name": a['firstName'] + ' ' + a['lastName']
-                }]
-                # if a['login'] == 'kelseyparks2022':
-                #     import pdb; pdb.set_trace()
-                gc.put(annotation_access_update_url + aid + '/access?access=' + urllib.quote_plus(json.dumps(access_dict)) + '&public=false')
-            except KeyError:
-                print('No user {0} in group'.format(annotation['name']))
+        for annotation in updated_annotations:
+            annotation_name = annotation['annotation']['name']
+            annotation_id = annotation['_id']
+            
+            # Find the intended owner for this annotation
+            if annotation_name in group_by_name:
+                try:
+                    a = group_by_name[annotation_name]
+                    
+                    # Create owner-level access control - set level to highest (2) and ensure user is sole owner
+                    owner_access_dict = {
+                        "groups": access_dict.get("groups", []),  # Keep existing group access
+                        "users": [
+                            {
+                                "flags": [],
+                                "id": a['_id'],
+                                "level": 2,  # Owner level
+                                "login": a['login'],
+                                "name": a['firstName'] + ' ' + a['lastName']
+                            }
+                        ]
+                    }
+                    
+                    # Set the user as owner of this specific annotation
+                    owner_access_url = annotation_access_update_url + annotation_id + '/access?access=' + urllib.quote_plus(json.dumps(owner_access_dict)) + '&public=false'
+                    gc.put(owner_access_url)
+                    print("Set ownership permissions for annotation {} to user {}".format(annotation_id, annotation_name))
+                    
+                except KeyError:
+                    print('No user {0} in group'.format(annotation_name))
+                except Exception as e:
+                    print('Failed to set ownership permissions for annotation {0}: {1}'.format(annotation_id, str(e)))
+
+
+def update_annotation_ownership_batch(folder_id, group_by_name):
+    """
+    Utility function to fix ownership of existing annotations in bulk
+    """
+    folder = Folder().load(folder_id, force=True)
+    
+    # Get all items in folder
+    for item in Folder().childItems(folder=folder):
+        annotations_url = ANNOTATION_API_URL + '?itemId=' + str(item['_id']) + ITEM_QUERY_STRING
+        annotations = gc.get(annotations_url)
+        
+        for annotation in annotations:
+            annotation_name = annotation['annotation']['name']
+            annotation_id = annotation['_id']
+            
+            if annotation_name in group_by_name:
+                intended_owner = group_by_name[annotation_name]
+                intended_owner_id = intended_owner['_id']
+                
+                try:
+                    # Update using Girder model
+                    from girder.models.annotation import Annotation
+                    annotation_obj = Annotation().load(annotation_id, force=True)
+                    if annotation_obj and str(annotation_obj.get('creatorId')) != str(intended_owner_id):
+                        annotation_obj['creatorId'] = ObjectId(intended_owner_id)
+                        Annotation().save(annotation_obj)
+                        print("Fixed ownership: " + annotation_name + " -> " + intended_owner['login'])
+                except Exception as e:
+                    print("Failed to fix annotation " + annotation_id + ": " + str(e))
+
+
+# Alternative approach using direct database access (if available)
+def update_annotation_ownership_direct(group_by_name):
+    """
+    Direct database update - most reliable method if you have DB access
+    """
+    try:
+        from girder.models.annotation import Annotation
+        from bson import ObjectId
+        
+        # Get all annotations where creator is admin but name suggests different owner
+        admin_user = User().findOne({'login': 'admin'})
+        admin_id = admin_user['_id']
+        
+        annotations_to_fix = Annotation().find({'creatorId': admin_id})
+        
+        for annotation in annotations_to_fix:
+            annotation_name = annotation.get('annotation', {}).get('name')
+            
+            if annotation_name and annotation_name in group_by_name:
+                intended_owner = group_by_name[annotation_name]
+                new_creator_id = ObjectId(intended_owner['_id'])
+                
+                # Update the creator
+                Annotation().update(
+                    {'_id': annotation['_id']}, 
+                    {'$set': {'creatorId': new_creator_id}}
+                )
+                print("Fixed annotation ownership: " + annotation_name)
+                
+    except Exception as e:
+        print("Direct database update failed: " + str(e))
 
 
 def export(items, args):
