@@ -13,8 +13,8 @@ import './views/itemList';
 import './views/itemPage';
 
 import ConfigView from './views/body/ConfigView';
-import UsersView from '@girder/core/views/body/UsersView';
-import UserView from '@girder/core/views/body/UserView';
+import UsersView from 'girder/views/body/UsersView';
+import UserView from 'girder/views/body/UserView';
 
 const pluginName = 'HistomicsTK';
 const configRoute = `plugins/${pluginName}/config`;
