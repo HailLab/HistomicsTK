@@ -30,9 +30,10 @@ class UserEmailCompletionNotificationResource(UserResource):
     )
     def emailCompletionNotification(self, email, project):
         user = self.getCurrentUser()
-        mail_utils.sendEmail(
-            to=email, subject='Skin {project} completion: {email_addr}'.format(email_addr=user.get('email', 'unknown_user').lower(), project=project),
+        mail_utils.sendMail(
+            subject='Skin {project} completion: {email_addr}'.format(email_addr=user.get('email', 'unknown_user').lower(), project=project),
             text='The user {email_addr} completed {project}.'.format(email_addr=user.get('email', 'unknown_user').lower(), project=project),
+            to=email,
         )
         return {'message': 'Emailed.'}
 
