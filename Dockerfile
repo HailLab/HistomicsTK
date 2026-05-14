@@ -36,6 +36,12 @@ RUN pip install --no-cache-dir --upgrade --ignore-installed pip setuptools && \
     # clean up
     rm -rf /root/.cache/pip/*
 
+# Install cron
+RUN apt-get install -y cron
+COPY cron/histomicstk /etc/cron.d/histomicstk
+RUN chmod 0644 /etc/cron.d/histomicstk
+CMD ["cron", "-f"]
+
 # git clone install slicer_cli_web
 RUN mkdir -p /build && \
     cd /build && \
