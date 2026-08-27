@@ -219,10 +219,11 @@ To install, on Amazon Linux instance with a minimum of 120GB SSD and IP restrict
 **********************************************************************************************
 .. code-block:: bash
 
-    sudo yum install git docker python3-pip nginx
+    sudo yum install git docker python3-pip nginx cronie
     sudo usermod -aG docker $USER
     reset
-    sudo service docker start
+    sudo systemctl enable --now docker  # `enable`, not just `start`. Without it dockerd does not start at boot and nothing comes back after a reboot.
+    sudo systemctl enable --now crond
     git clone git@github.com:HailLab/HistomicsTK.git  # you'll need to create keys and upload to your GitHub or use a personal access token
     cd HistomicsTK/
     pip install -r requirements_dev.txt
@@ -230,7 +231,44 @@ To install, on Amazon Linux instance with a minimum of 120GB SSD and IP restrict
     python3 ansible/deploy_docker.py start --mount ~/HistomicsTK/:/opt/histomicstk/HistomicsTK/  # kill command if it appears as though deployment is looping. The containers were still created properly.
     sudo mkdir /etc/nginx/sites-enabled/
     sudo cp devops/skin.app.vumc.org.conf.example /etc/nginx/conf.d/skin.app.vumc.org.conf
-    sudo service nginx restart
+    sudo systemctl enable --now nginx  # `enable`, or nginx does not come back after a reboot
+    sudo systemctl restart nginx
+
+Making the deployment survive a reboot:
+---------------------------------------
+``deploy_docker.py`` creates every container with a ``restart_policy`` of ``always``, so
+Docker will bring all four back on its own -- but only if ``dockerd`` itself starts at
+boot. That is what the ``systemctl enable`` calls above are for; ``service ... start``
+alone leaves the whole stack down after the first reboot.
+
+Cron inside the ``histomicstk`` container is not covered by the restart policy. The
+container's ``CMD`` runs ``girder mount`` and ``girder serve`` only, so after any reboot
+or container restart the site comes back looking healthy while the hourly
+``manage_skin.py`` jobs and the nightly ``export_all_annotations.py`` silently stop.
+Install this guarded watchdog in the host crontab (``sudo crontab -e``) to restart it
+automatically. The ``pgrep`` guard is required: running ``service cron start`` when cron
+is already up starts a *second* daemon and every job then fires twice.
+
+.. code-block:: bash
+
+    */5 * * * * /usr/bin/docker exec histomicstk_histomicstk pgrep -x cron >/dev/null 2>&1 || /usr/bin/docker exec histomicstk_histomicstk sudo service cron start
+
+Verify the whole thing with:
+
+.. code-block:: bash
+
+    systemctl is-enabled docker nginx crond  # all three must say "enabled"
+    docker inspect -f '{{.Name}} {{.HostConfig.RestartPolicy.Name}}' $(docker ps -aq)  # all four must say "always"
+
+If a container is missing the restart policy, fix it in place with
+``docker update --restart=always <name>``. Do **not** fix it by recreating the container:
+the ``histomicstk`` container's writable layer holds the MATLAB runtime, cron, the timeme.js
+and wurfl.js assets and other things installed via ``docker exec`` that are not in the
+image, and ``deploy_docker.py rm`` destroys all of it.
+
+Do not ``docker stop`` the containers before rebooting either. A container that was
+stopped by hand is marked stopped and will *not* be restarted when dockerd comes back,
+even with ``restart=always``. Just reboot and let dockerd shut them down.
 
 On source server:
 -----------------
